@@ -36,29 +36,70 @@ CONF_SCAN_INTERVAL = "scan_interval"  # 数据更新间隔（小时）
 
 # 传感器类型
 SENSOR_TYPES = {
+    # === 高价值 ===
     "arrears": {
         "name": "欠费金额",
         "unit": "¥",
         "icon": "mdi:cash",
     },
-    "last_bill_amount": {
-        "name": "上期账单金额",
+    "account_balance": {
+        "name": "燃气账户余额",
         "unit": "¥",
-        "icon": "mdi:receipt",
+        "icon": "mdi:wallet",
     },
-    "last_bill_gas": {
-        "name": "上期用气量",
+    "last_pay_time": {
+        "name": "最近缴费时间",
+        "icon": "mdi:clock-outline",
+    },
+    "last_pay_amount": {
+        "name": "最近缴费金额",
+        "unit": "¥",
+        "icon": "mdi:cash-multiple",
+    },
+    "annual_pay_count": {
+        "name": "年度缴费次数",
+        "icon": "mdi:counter",
+    },
+    "this_read": {
+        "name": "本期表读数",
         "unit": "m³",
+        "icon": "mdi:gauge",
+    },
+    "this_read_time": {
+        "name": "本期抄表时间",
+        "icon": "mdi:calendar-check",
+    },
+    "step1_gas_used": {
+        "name": "一档用气量",
+        "unit": "m³",
+        "icon": "mdi:stairs-up",
+    },
+    # === 中等价值 ===
+    "cons_addr": {
+        "name": "用气地址",
+        "icon": "mdi:home-map-marker",
+    },
+    "org_name": {
+        "name": "燃气公司",
+        "icon": "mdi:domain",
+    },
+    "gas_nature": {
+        "name": "燃气类型",
         "icon": "mdi:gas-cylinder",
     },
-    "last_mr_date": {
-        "name": "最近抄表日期",
-        "icon": "mdi:calendar",
+    "purchase_style": {
+        "name": "购气方式",
+        "icon": "mdi:cart",
     },
-    "total_consumption": {
-        "name": "年度累计用气量",
+    "last_month_gas": {
+        "name": "上月用气量",
         "unit": "m³",
-        "icon": "mdi:chart-line",
+        "icon": "mdi:chart-bar",
+    },
+    "year_avg_gas": {
+        "name": "年度月均用气量",
+        "unit": "m³",
+        "icon": "mdi:chart-line-variant",
     },
 }
 

@@ -67,16 +67,36 @@ class HuarunGasSensor(Entity):
         if not data:
             return None
 
+        # 高价值传感器
         if self.sensor_type == "arrears":
             return data.get("arrears", 0)
-        elif self.sensor_type == "last_bill_amount":
-            return data.get("last_bill_amount", 0)
-        elif self.sensor_type == "last_bill_gas":
-            return data.get("last_bill_gas", 0)
-        elif self.sensor_type == "last_mr_date":
-            return data.get("last_mr_date", "未知")
-        elif self.sensor_type == "total_consumption":
-            return data.get("total_consumption", 0)
+        elif self.sensor_type == "account_balance":
+            return data.get("account_balance", 0)
+        elif self.sensor_type == "last_pay_time":
+            return data.get("last_pay_time", "未知")
+        elif self.sensor_type == "last_pay_amount":
+            return data.get("last_pay_amount", 0)
+        elif self.sensor_type == "annual_pay_count":
+            return data.get("annual_pay_count", 0)
+        elif self.sensor_type == "this_read":
+            return data.get("this_read", 0)
+        elif self.sensor_type == "this_read_time":
+            return data.get("this_read_time", "未知")
+        elif self.sensor_type == "step1_gas_used":
+            return data.get("step1_gas_used", 0)
+        # 中等价值传感器
+        elif self.sensor_type == "cons_addr":
+            return data.get("cons_addr", "未知")
+        elif self.sensor_type == "org_name":
+            return data.get("org_name", "未知")
+        elif self.sensor_type == "gas_nature":
+            return data.get("gas_nature", "未知")
+        elif self.sensor_type == "purchase_style":
+            return data.get("purchase_style", "未知")
+        elif self.sensor_type == "last_month_gas":
+            return data.get("last_month_gas", 0)
+        elif self.sensor_type == "year_avg_gas":
+            return data.get("year_avg_gas", 0)
         return None
 
 
@@ -139,11 +159,22 @@ async def async_setup_entry(
     async def async_update_data():
         """更新数据 - 各接口独立容错，任一失败不影响其他"""
         result = {
+            # 高价值
             "arrears": 0,
-            "last_bill_amount": 0,
-            "last_bill_gas": 0,
-            "last_mr_date": "未知",
-            "total_consumption": 0,
+            "account_balance": 0,
+            "last_pay_time": "未知",
+            "last_pay_amount": 0,
+            "annual_pay_count": 0,
+            "this_read": 0,
+            "this_read_time": "未知",
+            "step1_gas_used": 0,
+            # 中等价值
+            "cons_addr": "未知",
+            "org_name": "未知",
+            "gas_nature": "未知",
+            "purchase_style": "未知",
+            "last_month_gas": 0,
+            "year_avg_gas": 0,
         }
 
         # 检查token是否即将过期（少于5分钟），如果是则强制刷新
@@ -154,26 +185,98 @@ async def async_setup_entry(
             except Exception as e:
                 _LOGGER.error(f"强制刷新Token失败: {e}")
 
-        # 获取欠费信息（独立容错）
+        # 1. 获取欠费信息
         try:
             arrears_data = await api.async_query_arrears(cons_no)
             if arrears_data:
-                result["arrears"] = arrears_data.get("amount", arrears_data.get("arrears", 0))
+                result["arrears"] = arrears_data.get("arrears", 0)
+                result["account_balance"] = arrears_data.get("totalGasBal", 0)
         except Exception as e:
             _LOGGER.error(f"获取欠费信息失败: {e}")
 
-        # 获取账单列表（独立容错）
+        # 2. 获取缴费历史
+        try:
+            pay_data = await api.async_query_pay_history(cons_no)
+            if pay_data:
+                pay_list = pay_data if isinstance(pay_data, list) else pay_data.get("dataResult", [])
+                if pay_list:
+                    # 最近缴费
+                    last_pay = pay_list[0]
+                    result["last_pay_time"] = last_pay.get("payTime", "未知")
+                    result["last_pay_amount"] = last_pay.get("payAmount", 0)
+                    # 年度缴费次数（今年）
+                    import datetime
+                    current_year = str(datetime.datetime.now().year)
+                    result["annual_pay_count"] = sum(1 for p in pay_list if current_year in str(p.get("payTime", "")))
+        except Exception as e:
+            _LOGGER.error(f"获取缴费历史失败: {e}")
+
+        # 3. 获取账单列表（获取抄表日期）
         try:
             bill_data = await api.async_get_gas_bill_list(cons_no, page=1, page_num=6)
             if bill_data:
-                bills = bill_data.get("dataResult", []) or bill_data.get("list", [])
+                data_result = bill_data.get("dataResult", {})
+                bills = data_result.get("data", []) if isinstance(data_result, dict) else data_result
                 if bills:
                     last_bill = bills[0]
-                    result["last_bill_amount"] = last_bill.get("amount", 0)
-                    result["last_bill_gas"] = last_bill.get("gas", 0)
-                    result["last_mr_date"] = last_bill.get("mrDate", "未知")
+                    result["this_read"] = last_bill.get("thisRead", 0)
+                    result["this_read_time"] = last_bill.get("thisReadTime", "未知")
         except Exception as e:
             _LOGGER.error(f"获取账单列表失败: {e}")
+
+        # 4. 获取月度用气图表数据
+        try:
+            chart_data = await api.async_get_gas_bill_list4chart(cons_no)
+            if chart_data:
+                dr = chart_data.get("dataResult", {})
+                last_gas = dr.get("lastGas", [])
+                this_gas = dr.get("thisGas", [])
+                if len(last_gas) > 1:
+                    result["last_month_gas"] = last_gas[1]
+                # 计算年度月均（取有数据的月份）
+                all_gas = [g for g in last_gas if g is not None]
+                if all_gas:
+                    result["year_avg_gas"] = round(sum(all_gas) / len(all_gas), 1)
+        except Exception as e:
+            _LOGGER.error(f"获取月度用气图表失败: {e}")
+
+        # 5. 获取账单详情（一档用气量）
+        try:
+            # 获取最新账单的 applicationNo
+            bill_data = await api.async_get_gas_bill_list(cons_no, page=1, page_num=1)
+            if bill_data:
+                data_result = bill_data.get("dataResult", {})
+                bills = data_result.get("data", []) if isinstance(data_result, dict) else data_result
+                if bills:
+                    latest_bill = bills[0]
+                    bill_ym = latest_bill.get("billYm", "")
+                    app_no = latest_bill.get("applicationNo", "")
+                    if bill_ym and app_no:
+                        detail_data = await api.async_get_bill_detail(cons_no, bill_ym, app_no)
+                        if detail_data:
+                            details = detail_data.get("dataResult", [])
+                            if details:
+                                step_list = details[0].get("gasStepList", [])
+                                for step in step_list:
+                                    if "一档" in step.get("stepType", ""):
+                                        result["step1_gas_used"] = step.get("gasUsed", 0)
+                                        break
+        except Exception as e:
+            _LOGGER.error(f"获取账单详情失败: {e}")
+
+        # 6. 获取绑定信息（地址、公司等）
+        try:
+            binding_data = await api.async_get_binding_cons()
+            if binding_data:
+                cons_list = binding_data if isinstance(binding_data, list) else binding_data.get("dataResult", [])
+                if cons_list:
+                    cons_info = cons_list[0]
+                    result["cons_addr"] = cons_info.get("consAddr", "未知")
+                    result["org_name"] = cons_info.get("orgName", "未知")
+                    result["gas_nature"] = cons_info.get("gasNature", "未知")
+                    result["purchase_style"] = cons_info.get("purchaseGasStyle", "未知")
+        except Exception as e:
+            _LOGGER.error(f"获取绑定信息失败: {e}")
 
         _LOGGER.debug(f"更新数据: {result}")
         return result

@@ -212,6 +212,11 @@ class HuarunGasApi:
         params = {"consNo": cons_no, "billYm": bill_ym, "applicationNo": application_no}
         return await self._request("GET", API_GET_BILL_DETAIL, params=params)
 
+    async def async_get_gas_bill_list4chart(self, cons_no: str) -> Dict[str, Any]:
+        """获取月度用气量图表数据"""
+        params = {"consNo": cons_no}
+        return await self._request("GET", "/bill/getGasBillList4Chart", params=params)
+
     async def async_query_arrears(self, cons_no: str) -> Dict[str, Any]:
         """查询欠费 - POST请求，需要JSON body"""
         order_time = datetime.now().strftime("%Y%m%d%H%M%S")
