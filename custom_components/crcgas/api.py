@@ -207,9 +207,9 @@ class HuarunGasApi:
         params = {"consNo": cons_no, "page": page, "pageNum": page_num}
         return await self._request("GET", API_GET_GAS_BILL_LIST, params=params)
 
-    async def async_get_bill_detail(self, cons_no: str, bill_id: str) -> Dict[str, Any]:
-        """获取账单详情"""
-        params = {"consNo": cons_no, "billId": bill_id}
+    async def async_get_bill_detail(self, cons_no: str, bill_ym: str, application_no: str) -> Dict[str, Any]:
+        """获取账单详情 - 抓包确认参数: billYm + consNo + applicationNo"""
+        params = {"consNo": cons_no, "billYm": bill_ym, "applicationNo": application_no}
         return await self._request("GET", API_GET_BILL_DETAIL, params=params)
 
     async def async_query_arrears(self, cons_no: str) -> Dict[str, Any]:
