@@ -119,6 +119,10 @@ async def async_setup_entry(
         update_interval=TOKEN_REFRESH_INTERVAL,
     )
 
+    # 启动Token刷新定时器
+    await token_coordinator.async_config_entry_first_refresh()
+    _LOGGER.info("Token自动刷新协调器已启动")
+
     # 初始Token验证和刷新
     try:
         _LOGGER.info("初始化Token验证...")
@@ -131,47 +135,48 @@ async def async_setup_entry(
         _LOGGER.error(f"Token初始化失败: {e}")
         # 继续启动，让定时器继续尝试刷新
 
-    # ========== 2. 数据更新协调器（每50分钟） ==========
+    # ========== 2. 数据更新协调器 ==========
     async def async_update_data():
-        """更新数据"""
+        """更新数据 - 各接口独立容错，任一失败不影响其他"""
+        result = {
+            "arrears": 0,
+            "last_bill_amount": 0,
+            "last_bill_gas": 0,
+            "last_mr_date": "未知",
+            "total_consumption": 0,
+        }
+
+        # 检查token是否即将过期（少于5分钟），如果是则强制刷新
+        if api.is_token_expiring_soon(threshold_seconds=int(TOKEN_EXPIRE_THRESHOLD.total_seconds())):
+            _LOGGER.warning(f"Token即将过期（剩余{api.get_token_remaining_seconds()}秒），强制刷新...")
+            try:
+                await api.async_refresh_token()
+            except Exception as e:
+                _LOGGER.error(f"强制刷新Token失败: {e}")
+
+        # 获取欠费信息（独立容错）
         try:
-            # 检查token是否即将过期（少于5分钟），如果是则强制刷新
-            if api.is_token_expiring_soon(threshold_seconds=int(TOKEN_EXPIRE_THRESHOLD.total_seconds())):
-                _LOGGER.warning(f"Token即将过期（剩余{api.get_token_remaining_seconds()}秒），强制刷新...")
-                try:
-                    await api.async_refresh_token()
-                except Exception as e:
-                    _LOGGER.error(f"强制刷新Token失败: {e}")
-
-            # 获取欠费信息
             arrears_data = await api.async_query_arrears(cons_no)
-
-            # 获取账单列表
-            bill_data = await api.async_get_gas_bill_list(cons_no)
-
-            # 处理数据
-            result = {
-                "arrears": arrears_data.get("amount", 0),
-                "last_bill_amount": 0,
-                "last_bill_gas": 0,
-                "last_mr_date": "未知",
-                "total_consumption": 0,
-            }
-
-            # 解析账单详情（抓包显示是dataResult数组）
-            bills = bill_data.get("dataResult", []) or bill_data.get("list", [])
-            if bills:
-                last_bill = bills[0]
-                result["last_bill_amount"] = last_bill.get("amount", 0)
-                result["last_bill_gas"] = last_bill.get("gas", 0)
-                result["last_mr_date"] = last_bill.get("mrDate", "未知")
-
-            _LOGGER.debug(f"更新数据: {result}")
-            return result
-
+            if arrears_data:
+                result["arrears"] = arrears_data.get("amount", arrears_data.get("arrears", 0))
         except Exception as e:
-            _LOGGER.error(f"更新数据失败: {e}")
-            raise
+            _LOGGER.error(f"获取欠费信息失败: {e}")
+
+        # 获取账单列表（独立容错）
+        try:
+            bill_data = await api.async_get_gas_bill_list(cons_no, page=1, page_num=6)
+            if bill_data:
+                bills = bill_data.get("dataResult", []) or bill_data.get("list", [])
+                if bills:
+                    last_bill = bills[0]
+                    result["last_bill_amount"] = last_bill.get("amount", 0)
+                    result["last_bill_gas"] = last_bill.get("gas", 0)
+                    result["last_mr_date"] = last_bill.get("mrDate", "未知")
+        except Exception as e:
+            _LOGGER.error(f"获取账单列表失败: {e}")
+
+        _LOGGER.debug(f"更新数据: {result}")
+        return result
 
     coordinator = DataUpdateCoordinator(
         hass,

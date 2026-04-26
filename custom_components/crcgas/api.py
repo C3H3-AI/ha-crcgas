@@ -4,6 +4,7 @@ import base64
 import json
 import logging
 import time
+from datetime import datetime
 from typing import Any, Dict, Optional, Callable, Awaitable
 
 import httpx
@@ -201,9 +202,9 @@ class HuarunGasApi:
         """获取绑定的用户"""
         return await self._request("GET", API_GET_BINDING_CONS)
 
-    async def async_get_gas_bill_list(self, cons_no: str) -> Dict[str, Any]:
+    async def async_get_gas_bill_list(self, cons_no: str, page: int = 1, page_num: int = 6) -> Dict[str, Any]:
         """获取账单列表"""
-        params = {"consNo": cons_no}
+        params = {"consNo": cons_no, "page": page, "pageNum": page_num}
         return await self._request("GET", API_GET_GAS_BILL_LIST, params=params)
 
     async def async_get_bill_detail(self, cons_no: str, bill_id: str) -> Dict[str, Any]:
@@ -212,9 +213,15 @@ class HuarunGasApi:
         return await self._request("GET", API_GET_BILL_DETAIL, params=params)
 
     async def async_query_arrears(self, cons_no: str) -> Dict[str, Any]:
-        """查询欠费"""
-        params = {"consNo": cons_no}
-        return await self._request("GET", API_QUERY_ARREARS, params=params)
+        """查询欠费 - POST请求，需要JSON body"""
+        order_time = datetime.now().strftime("%Y%m%d%H%M%S")
+        payload = {
+            "busiType": 1,
+            "consNo": cons_no,
+            "orderTime": order_time,
+            "onlyQuery": 1
+        }
+        return await self._request("POST", API_QUERY_ARREARS, json=payload)
 
     async def async_get_bo_token(self) -> Dict[str, Any]:
         """获取 BO Token"""
