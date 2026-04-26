@@ -1,7 +1,7 @@
 """华润燃气 API封装"""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable, Awaitable
 
 import httpx
 
@@ -28,27 +28,38 @@ class HuarunGasApi:
         refresh_token: str,
         bo_token: str,
         wx_code: str,
+        on_token_refresh: Optional[Callable[[str, str], Awaitable[None]]] = None,
     ):
         self.refresh_token = refresh_token
         self.bo_token = bo_token
         self.wx_code = wx_code
-        self._headers = {
-            "Content-Type": "application/json",
-            "refresh-token": refresh_token,
-            "bo-token": bo_token,
-            "wxCode": wx_code,
-        }
+        self._on_token_refresh = on_token_refresh  # Token刷新回调
         self._client: Optional[httpx.AsyncClient] = None
+
+    def _get_headers(self) -> dict:
+        """获取请求头（动态更新token）"""
+        return {
+            "Content-Type": "application/json",
+            "refresh-token": self.refresh_token,
+            "bo-token": self.bo_token,
+            "wxCode": self.wx_code,
+        }
 
     async def _ensure_client(self) -> httpx.AsyncClient:
         """确保客户端已创建"""
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
                 base_url=BASE_URL,
-                headers=self._headers,
+                headers=self._get_headers(),
                 timeout=30.0,
             )
         return self._client
+
+    async def _rebuild_client(self):
+        """重建客户端（token更新后）"""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+        self._client = None
 
     async def _request(
         self,
@@ -59,14 +70,16 @@ class HuarunGasApi:
         """发送请求"""
         client = await self._ensure_client()
         url = f"{BASE_URL}{endpoint}"
+        headers = self._get_headers()
 
         _LOGGER.debug(f"请求: {method} {url}")
-        _LOGGER.debug(f"Headers: {self._headers}")
+        _LOGGER.debug(f"Headers: refresh-token={self.refresh_token[:30]}...")
 
         try:
             response = await client.request(
                 method,
                 endpoint,
+                headers=headers,  # 每次请求都用最新的headers
                 **kwargs,
             )
             response.raise_for_status()
@@ -81,8 +94,56 @@ class HuarunGasApi:
             raise
 
     async def async_refresh_token(self) -> Dict[str, Any]:
-        """刷新 Token"""
-        return await self._request("POST", API_DO_REFRESH_TOKEN)
+        """
+        刷新 Token
+        返回: {"refresh-token": "...", "bo-token": "..."}
+        """
+        client = await self._ensure_client()
+        headers = self._get_headers()
+        url = f"{BASE_URL}{API_DO_REFRESH_TOKEN}"
+
+        _LOGGER.info("开始刷新Token...")
+
+        try:
+            # GET请求，不需要body
+            response = await client.get(
+                API_DO_REFRESH_TOKEN,
+                headers=headers,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            _LOGGER.debug(f"刷新Token响应: {data}")
+
+            # 检查是否成功
+            if data.get("success"):
+                result = data.get("dataResult", {})
+                new_refresh_token = result.get("refresh-token")
+                new_bo_token = result.get("bo-token")
+
+                if new_refresh_token and new_bo_token:
+                    # 更新本地token
+                    self.refresh_token = new_refresh_token
+                    self.bo_token = new_bo_token
+                    await self._rebuild_client()
+
+                    # 调用回调保存新token
+                    if self._on_token_refresh:
+                        await self._on_token_refresh(new_refresh_token, new_bo_token)
+
+                    _LOGGER.info("Token刷新成功!")
+                    return {"refresh-token": new_refresh_token, "bo-token": new_bo_token}
+                else:
+                    _LOGGER.warning(f"Token刷新响应缺少token: {result}")
+                    return {}
+            else:
+                # SESSION_TIMEOUT 等错误
+                _LOGGER.error(f"Token刷新失败: {data.get('msg')} ({data.get('statusCode')})")
+                raise Exception(f"Token刷新失败: {data.get('msg')}")
+
+        except Exception as e:
+            _LOGGER.error(f"Token刷新异常: {e}")
+            raise
 
     async def async_get_login_info(self) -> Dict[str, Any]:
         """获取登录信息"""

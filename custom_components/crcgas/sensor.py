@@ -8,6 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.event import async_track_time_interval
 
 from .api import HuarunGasApi
 from .const import (
@@ -20,6 +21,9 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Token刷新间隔
+TOKEN_REFRESH_INTERVAL = timedelta(minutes=10)
 
 
 class HuarunGasSensor(Entity):
@@ -86,8 +90,39 @@ async def async_setup_entry(
     wx_code = config_entry.data[CONF_WX_CODE]
     cons_no = config_entry.data.get(CONF_CONS_NO, "")
 
-    api = HuarunGasApi(refresh_token, bo_token, wx_code)
+    # Token刷新回调：保存新token到config_entry
+    async def on_token_refresh(new_refresh_token: str, new_bo_token: str):
+        """Token刷新后保存"""
+        _LOGGER.info("保存新Token到config_entry")
+        new_data = {**config_entry.data}
+        new_data[CONF_REFRESH_TOKEN] = new_refresh_token
+        new_data[CONF_BO_TOKEN] = new_bo_token
+        hass.config_entries.async_update_entry(config_entry, data=new_data)
 
+    api = HuarunGasApi(refresh_token, bo_token, wx_code, on_token_refresh)
+
+    # ========== 1. Token刷新协调器（每10分钟） ==========
+    token_coordinator = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name=f"{DOMAIN}_token",
+        update_method=api.async_refresh_token,
+        update_interval=TOKEN_REFRESH_INTERVAL,
+    )
+
+    # 初始Token验证和刷新
+    try:
+        _LOGGER.info("初始化Token验证...")
+        result = await api.async_refresh_token()
+        if result:
+            _LOGGER.info("Token验证成功")
+        else:
+            _LOGGER.warning("Token验证返回空，可能已过期")
+    except Exception as e:
+        _LOGGER.error(f"Token初始化失败: {e}")
+        # 继续启动，让定时器继续尝试刷新
+
+    # ========== 2. 数据更新协调器（每30分钟） ==========
     async def async_update_data():
         """更新数据"""
         try:
@@ -106,8 +141,8 @@ async def async_setup_entry(
                 "total_consumption": 0,
             }
 
-            # 解析账单详情
-            bills = bill_data.get("list", [])
+            # 解析账单详情（抓包显示是dataResult数组）
+            bills = bill_data.get("dataResult", []) or bill_data.get("list", [])
             if bills:
                 last_bill = bills[0]
                 result["last_bill_amount"] = last_bill.get("amount", 0)

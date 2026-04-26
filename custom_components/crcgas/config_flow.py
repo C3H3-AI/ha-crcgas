@@ -18,7 +18,6 @@ from .const import (
     CONF_CONS_NO,
     CONF_MOBILE,
     CONF_REFRESH_TOKEN,
-    CONF_SERVICE_PASSWORD,
     CONF_WX_CODE,
     DOMAIN,
 )
@@ -31,7 +30,6 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Required(CONF_REFRESH_TOKEN): str,
         vol.Required(CONF_BO_TOKEN): str,
         vol.Required(CONF_WX_CODE): str,
-        vol.Optional(CONF_SERVICE_PASSWORD, default=""): str,
     }
 )
 
@@ -104,8 +102,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 _LOGGER.debug(f"验证响应: {data}")
 
-                if data.get("code") == 0 or data.get("code") == "0":
-                    cons_list = data.get("list", []) or data.get("data", [])
+                # 抓包显示响应结构: {"dataResult": [...], "success": true, "statusCode": "200"}
+                if data.get("success"):
+                    cons_list = data.get("dataResult", []) or data.get("list", []) or data.get("data", [])
                     if cons_list:
                         return {
                             "success": True,

@@ -12,12 +12,12 @@ BASE_URL = "https://wmp-svc.crcgas.com/wmp-wechat-rest"
 
 # API端点
 API_GET_LOGIN_INFO = "/public/mp/getMpLoginInfo"
-API_GET_BINDING_CONS = "/binding/getMpBindingCons"
+API_GET_BINDING_CONS = "/binding/getMpBindingCons"  # 修正：抓包确认路径
 API_GET_GAS_BILL_LIST = "/bill/getGasBillList"
 API_GET_BILL_DETAIL = "/bill/getBillDetail"
 API_QUERY_ARREARS = "/mp/pay/queryArrears"
 API_GET_BO_TOKEN = "/public/mp/getBoToken4Mp"
-API_DO_REFRESH_TOKEN = "/public/doRefreshToken"
+API_DO_REFRESH_TOKEN = "/public/doRefreshToken"  # GET请求，非POST
 API_QUERY_PAY_HISTORY = "/mp/pay/queryPayHistory"  # 缴费历史
 
 # 配置键
