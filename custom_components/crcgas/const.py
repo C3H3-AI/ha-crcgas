@@ -59,8 +59,8 @@ SENSOR_TYPES = {
     },
 }
 
-# 更新间隔
-# Token有效期约1小时，每59分钟刷新一次（留1分钟余量）
+# Token有效期（bo-token约3小时，refresh-token约4.5小时）
 from datetime import timedelta
-TOKEN_REFRESH_INTERVAL = timedelta(minutes=59)  # Token刷新间隔
-SCAN_INTERVAL = timedelta(minutes=59)          # 数据更新间隔
+TOKEN_REFRESH_INTERVAL = timedelta(hours=1)    # Token刷新间隔（与小程序一致）
+TOKEN_EXPIRE_THRESHOLD = timedelta(minutes=5)   # 剩余时间少于5分钟时强制刷新
+SCAN_INTERVAL = timedelta(hours=1)              # 数据更新间隔

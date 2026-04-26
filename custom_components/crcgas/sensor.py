@@ -18,6 +18,7 @@ from .const import (
     DOMAIN,
     SENSOR_TYPES,
     TOKEN_REFRESH_INTERVAL,
+    TOKEN_EXPIRE_THRESHOLD,
     SCAN_INTERVAL,
 )
 
@@ -120,10 +121,18 @@ async def async_setup_entry(
         _LOGGER.error(f"Token初始化失败: {e}")
         # 继续启动，让定时器继续尝试刷新
 
-    # ========== 2. 数据更新协调器（每30分钟） ==========
+    # ========== 2. 数据更新协调器（每50分钟） ==========
     async def async_update_data():
         """更新数据"""
         try:
+            # 检查token是否即将过期（少于5分钟），如果是则强制刷新
+            if api.is_token_expiring_soon(threshold_seconds=int(TOKEN_EXPIRE_THRESHOLD.total_seconds())):
+                _LOGGER.warning(f"Token即将过期（剩余{api.get_token_remaining_seconds()}秒），强制刷新...")
+                try:
+                    await api.async_refresh_token()
+                except Exception as e:
+                    _LOGGER.error(f"强制刷新Token失败: {e}")
+
             # 获取欠费信息
             arrears_data = await api.async_query_arrears(cons_no)
 

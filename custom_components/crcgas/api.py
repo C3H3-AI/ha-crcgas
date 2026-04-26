@@ -1,6 +1,9 @@
 """华润燃气 API封装"""
 
+import base64
+import json
 import logging
+import time
 from typing import Any, Dict, Optional, Callable, Awaitable
 
 import httpx
@@ -35,6 +38,43 @@ class HuarunGasApi:
         self.wx_code = wx_code
         self._on_token_refresh = on_token_refresh  # Token刷新回调
         self._client: Optional[httpx.AsyncClient] = None
+
+    def _decode_jwt_payload(self, token: str) -> Optional[Dict[str, Any]]:
+        """解码JWT payload获取过期时间"""
+        try:
+            # JWT格式: header.payload.signature
+            parts = token.split('.')
+            if len(parts) != 3:
+                return None
+            # Base64URL解码payload
+            payload = parts[1]
+            # 补全padding
+            padding = 4 - len(payload) % 4
+            if padding != 4:
+                payload += '=' * padding
+            decoded = base64.urlsafe_b64decode(payload)
+            return json.loads(decoded)
+        except Exception as e:
+            _LOGGER.warning(f"JWT解码失败: {e}")
+            return None
+
+    def get_token_remaining_seconds(self, token: str = None) -> Optional[int]:
+        """获取token剩余有效时间（秒）"""
+        token = token or self.bo_token
+        payload = self._decode_jwt_payload(token)
+        if not payload:
+            return None
+        exp = payload.get('exp', 0)
+        current = int(time.time())
+        remaining = exp - current
+        return max(0, remaining)
+
+    def is_token_expiring_soon(self, threshold_seconds: int = 300) -> bool:
+        """检查token是否即将过期（默认5分钟阈值）"""
+        remaining = self.get_token_remaining_seconds()
+        if remaining is None:
+            return False  # 无法判断时保守处理
+        return remaining < threshold_seconds
 
     def _get_headers(self) -> dict:
         """获取请求头（动态更新token）"""
