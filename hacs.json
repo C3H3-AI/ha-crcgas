@@ -1,0 +1,10 @@
+{
+  "name": "CRC GAS 华润燃气",
+  "content_in_root": false,
+  "filename": null,
+  "repository": "C3H3-AI/ha-crcgas",
+  "country": ["cn"],
+  "homeassistant": "2024.1.0",
+  "hacs": "1.0.0",
+  "render_jinja": true
+}
