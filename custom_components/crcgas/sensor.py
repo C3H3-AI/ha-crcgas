@@ -1,7 +1,6 @@
 """华润燃气 传感器平台"""
 
 import logging
-from datetime import timedelta
 from typing import Any, Dict, Optional
 
 from homeassistant.config_entries import ConfigEntry
@@ -18,12 +17,11 @@ from .const import (
     CONF_WX_CODE,
     DOMAIN,
     SENSOR_TYPES,
+    TOKEN_REFRESH_INTERVAL,
+    SCAN_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-# Token刷新间隔
-TOKEN_REFRESH_INTERVAL = timedelta(minutes=10)
 
 
 class HuarunGasSensor(Entity):
@@ -161,7 +159,7 @@ async def async_setup_entry(
         _LOGGER,
         name=DOMAIN,
         update_method=async_update_data,
-        update_interval=timedelta(minutes=30),
+        update_interval=SCAN_INTERVAL,
     )
 
     await coordinator.async_config_entry_first_refresh()

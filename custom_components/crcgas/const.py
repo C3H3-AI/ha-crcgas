@@ -59,10 +59,8 @@ SENSOR_TYPES = {
     },
 }
 
-# 更新间隔（动态调整）
+# 更新间隔
+# Token有效期约1小时，每59分钟刷新一次（留1分钟余量）
 from datetime import timedelta
-INITIAL_SCAN_INTERVAL = timedelta(minutes=30)  # 初始30分钟
-MIN_SCAN_INTERVAL = timedelta(minutes=5)       # 最小5分钟
-MAX_SCAN_INTERVAL = timedelta(minutes=60)       # 最大60分钟
-INTERVAL_STEP = timedelta(minutes=10)          # 调整步长10分钟
-SCAN_INTERVAL = INITIAL_SCAN_INTERVAL
+TOKEN_REFRESH_INTERVAL = timedelta(minutes=59)  # Token刷新间隔
+SCAN_INTERVAL = timedelta(minutes=59)          # 数据更新间隔

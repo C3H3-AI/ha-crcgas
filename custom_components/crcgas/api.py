@@ -39,10 +39,18 @@ class HuarunGasApi:
     def _get_headers(self) -> dict:
         """获取请求头（动态更新token）"""
         return {
-            "Content-Type": "application/json",
+            "Content-Type": "application/json;charset=UTF-8",
             "refresh-token": self.refresh_token,
             "bo-token": self.bo_token,
             "wxCode": self.wx_code,
+            # 微信小程序必需请求头
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254186b) XWEB/19481",
+            "xweb_xhr": "1",
+            "Sec-Fetch-Site": "cross-site",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Dest": "empty",
+            "Referer": "https://servicewechat.com/wx34991921b0f92df7/46/page-frame.html",
+            "Accept-Language": "zh-CN,zh;q=0.9",
         }
 
     async def _ensure_client(self) -> httpx.AsyncClient:
