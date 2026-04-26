@@ -31,6 +31,9 @@ CONF_CONS_NAME = "cons_name"
 CONF_CONS_ADDR = "cons_addr"
 CONF_MOBILE = "mobile"
 
+# 自定义配置
+CONF_SCAN_INTERVAL = "scan_interval"  # 数据更新间隔（小时）
+
 # 传感器类型
 SENSOR_TYPES = {
     "arrears": {
@@ -63,4 +66,12 @@ SENSOR_TYPES = {
 from datetime import timedelta
 TOKEN_REFRESH_INTERVAL = timedelta(hours=1)    # Token刷新间隔（与小程序一致）
 TOKEN_EXPIRE_THRESHOLD = timedelta(minutes=5)   # 剩余时间少于5分钟时强制刷新
-SCAN_INTERVAL = timedelta(hours=1)              # 数据更新间隔
+DEFAULT_SCAN_INTERVAL = timedelta(hours=1)     # 默认数据更新间隔
+SCAN_INTERVAL_OPTIONS = [
+    (1, "1小时"),
+    (2, "2小时"),
+    (3, "3小时"),
+    (6, "6小时"),
+    (12, "12小时"),
+    (24, "24小时"),
+]

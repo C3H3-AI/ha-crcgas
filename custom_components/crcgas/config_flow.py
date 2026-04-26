@@ -18,8 +18,11 @@ from .const import (
     CONF_CONS_NO,
     CONF_MOBILE,
     CONF_REFRESH_TOKEN,
+    CONF_SCAN_INTERVAL,
     CONF_WX_CODE,
+    DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    SCAN_INTERVAL_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -67,7 +70,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     }
                     return self.async_create_entry(
                         title=f"华润燃气 ({cons_info.get('consNo', '未知户号')})",
-                        data=final_data,
+                        data={
+                            **final_data,
+                            CONF_SCAN_INTERVAL: int(DEFAULT_SCAN_INTERVAL.total_seconds() / 3600),
+                        },
                     )
                 else:
                     errors["base"] = result.get("error", "auth_failed")
@@ -79,6 +85,77 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=CONFIG_SCHEMA,
             errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input=None
+    ):
+        """重新配置步骤"""
+        reconfigure_entry = self._get_reconfigure_entry()
+        errors = {}
+
+        if user_input is not None:
+            refresh_token = user_input[CONF_REFRESH_TOKEN]
+            bo_token = user_input[CONF_BO_TOKEN]
+            wx_code = user_input[CONF_WX_CODE]
+
+            # 验证 tokens 并获取户号信息
+            try:
+                result = await self._validate_and_get_cons(
+                    refresh_token, bo_token, wx_code
+                )
+                if result.get("success"):
+                    cons_info = result.get("cons_info", {})
+                    # 保留原有的scan_interval配置
+                    existing_scan_interval = reconfigure_entry.data.get(
+                        CONF_SCAN_INTERVAL,
+                        int(DEFAULT_SCAN_INTERVAL.total_seconds() / 3600)
+                    )
+                    # 合并用户输入和户号信息
+                    final_data = {
+                        **user_input,
+                        CONF_CONS_NO: cons_info.get("consNo", ""),
+                        CONF_CONS_NAME: cons_info.get("consName", ""),
+                        CONF_CONS_ADDR: cons_info.get("consAddr", ""),
+                        CONF_MOBILE: cons_info.get("mobile", ""),
+                        CONF_AREA: cons_info.get("area", ""),
+                        CONF_SCAN_INTERVAL: existing_scan_interval,
+                    }
+                    return self.async_update_reload_and_abort(
+                        reconfigure_entry,
+                        data_updates=final_data,
+                    )
+                else:
+                    errors["base"] = result.get("error", "auth_failed")
+            except Exception as e:
+                _LOGGER.error(f"验证失败: {e}")
+                errors["base"] = "auth_failed"
+
+        # 预填现有配置
+        options_schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_REFRESH_TOKEN,
+                    default=reconfigure_entry.data.get(CONF_REFRESH_TOKEN, ""),
+                ): str,
+                vol.Required(
+                    CONF_BO_TOKEN,
+                    default=reconfigure_entry.data.get(CONF_BO_TOKEN, ""),
+                ): str,
+                vol.Required(
+                    CONF_WX_CODE,
+                    default=reconfigure_entry.data.get(CONF_WX_CODE, ""),
+                ): str,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=options_schema,
+            errors=errors,
+            description_placeholders={
+                "help": "重新配置华润燃气账户信息"
+            },
         )
 
     async def _validate_and_get_cons(
@@ -149,24 +226,26 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
+        # 获取当前扫描间隔，默认1小时
+        current_interval = self.config_entry.data.get(
+            CONF_SCAN_INTERVAL,
+            int(DEFAULT_SCAN_INTERVAL.total_seconds() / 3600)
+        )
+
         options_schema = vol.Schema(
             {
                 vol.Required(
-                    CONF_REFRESH_TOKEN,
-                    default=self.config_entry.data.get(CONF_REFRESH_TOKEN),
-                ): str,
-                vol.Required(
-                    CONF_BO_TOKEN,
-                    default=self.config_entry.data.get(CONF_BO_TOKEN),
-                ): str,
-                vol.Required(
-                    CONF_WX_CODE,
-                    default=self.config_entry.data.get(CONF_WX_CODE),
-                ): str,
+                    CONF_SCAN_INTERVAL,
+                    default=current_interval,
+                ): vol.In(dict(SCAN_INTERVAL_OPTIONS)),
             }
         )
 
         return self.async_show_form(
             step_id="init",
             data_schema=options_schema,
+            description_placeholders={
+                "current_interval": f"{current_interval}小时",
+                "help": "配置数据更新频率（不是抓取数据，而是检查是否有更新的间隔）",
+            },
         )

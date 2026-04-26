@@ -1,6 +1,7 @@
 """华润燃气 传感器平台"""
 
 import logging
+from datetime import timedelta
 from typing import Any, Dict, Optional
 
 from homeassistant.config_entries import ConfigEntry
@@ -14,12 +15,13 @@ from .const import (
     CONF_BO_TOKEN,
     CONF_CONS_NO,
     CONF_REFRESH_TOKEN,
+    CONF_SCAN_INTERVAL,
     CONF_WX_CODE,
+    DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     SENSOR_TYPES,
     TOKEN_REFRESH_INTERVAL,
     TOKEN_EXPIRE_THRESHOLD,
-    SCAN_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -100,6 +102,14 @@ async def async_setup_entry(
 
     api = HuarunGasApi(refresh_token, bo_token, wx_code, on_token_refresh)
 
+    # 获取配置的扫描间隔，默认1小时
+    scan_interval_hours = config_entry.data.get(
+        CONF_SCAN_INTERVAL,
+        int(DEFAULT_SCAN_INTERVAL.total_seconds() / 3600)
+    )
+    scan_interval = timedelta(hours=scan_interval_hours)
+    _LOGGER.info(f"使用数据更新间隔: {scan_interval_hours}小时")
+
     # ========== 1. Token刷新协调器（每10分钟） ==========
     token_coordinator = DataUpdateCoordinator(
         hass,
@@ -168,7 +178,7 @@ async def async_setup_entry(
         _LOGGER,
         name=DOMAIN,
         update_method=async_update_data,
-        update_interval=SCAN_INTERVAL,
+        update_interval=scan_interval,
     )
 
     await coordinator.async_config_entry_first_refresh()
