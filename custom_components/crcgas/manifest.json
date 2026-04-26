@@ -1,6 +1,6 @@
 {
   "domain": "crcgas",
-  "name": "CRC GAS (Huaron Gas)",
+  "name": "CRC GAS 华润燃气",
   "version": "1.0.3",
   "config_flow": true,
   "documentation": "https://github.com/C3H3-AI/ha-crcgas",
