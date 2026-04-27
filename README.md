@@ -68,12 +68,6 @@ cp -r ha-crcgas ~/.homeassistant/custom_components/
 | `sensor.crcgas_last_month_gas` | 上月用气量 | m³ |
 | `sensor.crcgas_year_avg_gas` | 年度月均用气量 | m³ |
 
-## 数据更新
-
-- 更新间隔: 可自定义（1/2/3/6/12/24小时），默认1小时
-- Token 自动刷新: 无需手动重新授权（自动每1小时刷新一次）
-- 欠费提醒: 可配合 HA Automation 实现
-
 ## 示例 Automation
 
 ```yaml
