@@ -1,0 +1,10 @@
+fetch_history:
+  name: 抓取历史记录
+  description: 从华润燃气API抓取所有历史账单记录并保存到本地
+  fields:
+    config_entry_id:
+      name: 配置条目ID
+      description: CRC GAS集成的配置条目ID（可选，默认使用第一个找到的集成）
+      example: "1077753097"
+      selector:
+        text:

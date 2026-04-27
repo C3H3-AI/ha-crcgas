@@ -176,5 +176,4 @@ HISTORY_RETENTION_MONTHS = 24
 STEP_WARNING_THRESHOLDS = {
     "step1_warning": 10.0,  # 一档剩余量<10m³时预警
     "step2_warning": 5.0,   # 二档剩余量<5m³时预警
-
 }

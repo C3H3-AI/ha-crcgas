@@ -1,0 +1,36 @@
+{
+  "title": "华润燃气",
+  "config": {
+    "step": {
+      "user": {
+        "title": "华润燃气",
+        "description": "请填写从微信小程序抓包获取的 Token 信息",
+        "data": {
+          "refresh_token": "Refresh Token",
+          "bo_token": "BO Token",
+          "wx_code": "微信 Code",
+          "scan_interval": "数值",
+          "scan_interval_unit": "单位"
+        }
+      }
+    },
+    "error": {
+      "session_timeout": "会话已超时，请重新抓包获取最新 Token",
+      "auth_failed": "Token 验证失败，请检查 Token 是否正确",
+      "no_binding": "该账号未绑定户号",
+      "network_error": "网络连接失败，请检查服务器状态"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "更新设置",
+        "description": "配置数据更新规则",
+        "data": {
+          "scan_interval": "数值",
+          "scan_interval_unit": "单位"
+        }
+      }
+    }
+  }
+}

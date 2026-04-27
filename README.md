@@ -39,14 +39,30 @@ cp -r ha-crcgas ~/.homeassistant/custom_components/
 
 安装后会创建以下传感器:
 
-| 传感器 | 说明 | 单位 |
-|--------|------|------|
-| `sensor.crcgas_arrears` | 当前欠费金额 | ¥ |
-| `sensor.crcgas_last_bill_amount` | 上期账单金额 | ¥ |
-| `sensor.crcgas_last_bill_gas` | 上期用气量 | m³ |
-| `sensor.crcgas_last_mr_date` | 最近抄表日期 | - |
-| `sensor.crcgas_bill_list` | 账单数量 | N期 |
-| `sensor.crcgas_account` | 户号信息 | - |
+| 传感器实体 | 说明 | 单位 |
+|------------|------|------|
+| `sensor.crcgas_arrears` | 欠费金额 | ¥ |
+| `sensor.crcgas_account_balance` | 燃气账户余额 | ¥ |
+| `sensor.crcgas_last_pay_time` | 最近缴费时间 | - |
+| `sensor.crcgas_last_pay_amount` | 最近缴费金额 | ¥ |
+| `sensor.crcgas_annual_pay_count` | 年度缴费次数 | 次 |
+| `sensor.crcgas_this_read` | 本期表读数 | m³ |
+| `sensor.crcgas_this_read_time` | 本期抄表时间 | - |
+| `sensor.crcgas_step1_gas_used` | 一档用气量 | m³ |
+| `sensor.crcgas_step2_gas_used` | 二档用气量 | m³ |
+| `sensor.crcgas_this_gas_used` | 本期用气量 | m³ |
+| `sensor.crcgas_bill_amount` | 账单金额 | ¥ |
+| `sensor.crcgas_step1_remain` | 一档剩余气量 | m³ |
+| `sensor.crcgas_step2_remain` | 二档剩余气量 | m³ |
+| `sensor.crcgas_penalty_amount` | 违约金 | ¥ |
+| `sensor.crcgas_integration_status` | 集成状态 | - |
+| `sensor.crcgas_monthly_gas_used` | 本月累计用气量 | m³ |
+| `sensor.crcgas_cons_addr` | 用气地址 | - |
+| `sensor.crcgas_org_name` | 燃气公司 | - |
+| `sensor.crcgas_gas_nature` | 燃气类型 | - |
+| `sensor.crcgas_purchase_style` | 购气方式 | - |
+| `sensor.crcgas_last_month_gas` | 上月用气量 | m³ |
+| `sensor.crcgas_year_avg_gas` | 年度月均用气量 | m³ |
 
 ## 数据更新
 
