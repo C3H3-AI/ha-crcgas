@@ -1,5 +1,9 @@
 # 华润燃气 Home Assistant 集成
 
+![Version](https://img.shields.io/badge/version-v1.10-blue)
+![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.4%2B-green)
+![License](https://img.shields.io/badge/license-MIT-orange)
+
 通过 Home Assistant 集成查看燃气账单、欠费、用气量等信息。
 
 ## 安装
