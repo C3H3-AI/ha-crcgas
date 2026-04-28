@@ -145,6 +145,12 @@ class HuarunGasSensor(BaseSensor):
         elif self.sensor_type == "monthly_gas_used":
             v = data.get("monthly_gas_used")
             return float(v) if v is not None else 0
+        elif self.sensor_type == "gas_price_step1":
+            v = data.get("gas_price_step1")
+            return float(v) if v is not None else 0
+        elif self.sensor_type == "gas_price_step2":
+            v = data.get("gas_price_step2")
+            return float(v) if v is not None else 0
         return None
 
 
