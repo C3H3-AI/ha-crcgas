@@ -87,6 +87,17 @@ SENSOR_TYPES = {
         "unit": "m³",
         "icon": "mdi:stairs-up",
     },
+    # 单价（元/立方米）
+    "gas_price_step1": {
+        "name": "一档气价",
+        "unit": "¥/m³",
+        "icon": "mdi:currency-cny",
+    },
+    "gas_price_step2": {
+        "name": "二档气价",
+        "unit": "¥/m³",
+        "icon": "mdi:currency-cny",
+    },
     "this_gas_used": {
         "name": "本期用气量",
         "unit": "m³",

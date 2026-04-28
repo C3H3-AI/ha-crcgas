@@ -306,10 +306,12 @@ async def async_setup_entry(
                         result["step1_remain"] = float(lev_gq_remain) if lev_gq_remain else 0
                         result["step1_gas_limit"] = float(prc_detail.get("levGq", 0))
                         result["step1_price"] = float(prc_detail.get("catPrc", 0))
+                        result["gas_price_step1"] = float(prc_detail.get("catPrc", 0))
                     elif rule_code == "0202":
                         result["step2_remain"] = float(lev_gq_remain) if lev_gq_remain else 0
                         result["step2_gas_limit"] = float(prc_detail.get("levGq", 0))
                         result["step2_price"] = float(prc_detail.get("catPrc", 0))
+                        result["gas_price_step2"] = float(prc_detail.get("catPrc", 0))
                 if bills:
                     last_bill = bills[0]
                     result["_last_bill_ym"] = last_bill.get("billYm", "")
