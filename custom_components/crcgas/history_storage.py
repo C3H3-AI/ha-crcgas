@@ -130,6 +130,88 @@ class CRCGasHistoryStorage:
                 continue
         return total
 
+    async def async_fetch_all_bills(self, api, cons_no: str) -> Dict[str, Any]:
+        """抓取所有历史账单并存储
+
+        Args:
+            api: HuarunGasApi实例
+            cons_no: 户号
+
+        Returns:
+            抓取结果统计 {"new_bills", "updated_bills", "total_stored", "total_fetched"}
+        """
+        _LOGGER.info("开始抓取所有历史账单...")
+
+        existing_bills = {b["applicationNo"]: b for b in self._data.get("bill_history", [])}
+
+        page = 1
+        page_size = 20
+        total_fetched = 0
+        new_bills = 0
+        updated_bills = 0
+
+        while True:
+            try:
+                bill_data = await api.async_get_gas_bill_list(cons_no, page=page, page_num=page_size)
+                if not bill_data or not bill_data.get("success"):
+                    break
+
+                data_result = bill_data.get("dataResult", {})
+                bills = data_result.get("data", []) if isinstance(data_result, dict) else []
+
+                if not bills:
+                    break
+
+                for bill in bills:
+                    app_no = bill.get("applicationNo")
+                    if not app_no:
+                        continue
+
+                    bill_record = {
+                        "applicationNo": app_no,
+                        "billYm": bill.get("billYm"),
+                        "billAmt": float(bill.get("billAmt", 0) or 0),
+                        "gasAmt": float(bill.get("gasAmt", 0) or 0),
+                        "penaltyAmt": float(bill.get("penaltyAmt", 0) or 0),
+                        "revblAmt": float(bill.get("revblAmt", 0) or 0),
+                        "settleFlag": bill.get("settleFlag"),
+                        "penaltyDate": bill.get("penaltyDate"),
+                    }
+
+                    if app_no in existing_bills:
+                        existing_bills[app_no].update(bill_record)
+                        updated_bills += 1
+                    else:
+                        existing_bills[app_no] = bill_record
+                        new_bills += 1
+
+                total_fetched += len(bills)
+
+                if len(bills) < page_size:
+                    break
+
+                page += 1
+
+            except Exception as e:
+                _LOGGER.error(f"获取第{page}页账单失败: {e}")
+                break
+
+        # 更新存储
+        self._data["bill_history"] = list(existing_bills.values())
+        self._data["bill_history"].sort(key=lambda x: x.get("billYm", ""), reverse=True)
+
+        await self.async_save()
+
+        result = {
+            "total_fetched": total_fetched,
+            "new_bills": new_bills,
+            "updated_bills": updated_bills,
+            "total_stored": len(self._data["bill_history"]),
+        }
+
+        _LOGGER.info(f"历史账单抓取完成: 新增{new_bills}条, 更新{updated_bills}条, 总计{result['total_stored']}条")
+        return result
+
     def get_usage_trend(self, months: int = 12) -> List[Dict[str, Any]]:
         """获取用气趋势数据"""
         usage_records = self._data.get("usage_history", [])

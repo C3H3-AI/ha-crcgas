@@ -5,7 +5,7 @@ from homeassistant.const import Platform
 # 平台
 DOMAIN = "crcgas"
 PLATFORM_NAME = "华润燃气"  # 集成显示名称
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.BUTTON]
 
 # API配置
 BASE_URL = "https://wmp-svc.crcgas.com/wmp-wechat-rest"
@@ -172,9 +172,4 @@ DEFAULT_SCAN_INTERVAL = timedelta(hours=1)
 HISTORY_STORAGE_VERSION = 1
 HISTORY_RETENTION_MONTHS = 24
 
-# 阶梯用量预警阈值
-STEP_WARNING_THRESHOLDS = {
-    "step1_warning": 10.0,  # 一档剩余量<10m³时预警
-    "step2_warning": 5.0,   # 二档剩余量<5m³时预警
 
-}

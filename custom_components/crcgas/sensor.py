@@ -5,7 +5,7 @@
 
 import json
 import logging
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Any, Dict, Optional
 
 from homeassistant.config_entries import ConfigEntry
@@ -29,7 +29,6 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     SENSOR_TYPES,
-    TOKEN_REFRESH_INTERVAL,
     TOKEN_EXPIRE_THRESHOLD,
 )
 
@@ -198,23 +197,19 @@ async def async_setup_entry(
     api = HuarunGasApi(refresh_token, bo_token, wx_code, on_token_refresh, session=session)
 
     # 获取配置的扫描间隔，默认1小时
-    scan_interval_hours = config_entry.data.get(
-        CONF_SCAN_INTERVAL,
-        int(DEFAULT_SCAN_INTERVAL.total_seconds() / 3600)
-    )
-    scan_interval = timedelta(hours=scan_interval_hours)
-    _LOGGER.info(f"使用数据更新间隔: {scan_interval_hours}小时")
+    scan_interval_val = config_entry.data.get(CONF_SCAN_INTERVAL, 1)
+    scan_interval_unit = config_entry.data.get(CONF_SCAN_INTERVAL_UNIT, "hour")
 
-    # ========== 1. Token刷新协调器（每10分钟） ==========
-    token_coordinator = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        name=f"{DOMAIN}_token",
-        update_method=api.async_refresh_token,
-        update_interval=TOKEN_REFRESH_INTERVAL,
-    )
+    # 计算实际刷新间隔（hour=小时数，day=固定1小时仅支持定时，week=固定1小时，month=固定1小时）
+    # day/week/month 模式下实际刷新由 coordinator 内部逻辑决定，这里统一设为1小时兜底
+    if scan_interval_unit == "hour":
+        scan_interval = timedelta(hours=scan_interval_val)
+    else:
+        # 非小时模式：设为最小1小时，day/week/month 定时逻辑在刷新回调中处理
+        scan_interval = timedelta(hours=1)
+    _LOGGER.info(f"数据刷新间隔: {scan_interval_val} {scan_interval_unit}（实际: {scan_interval}）")
 
-    # 初始Token验证和刷新
+    # ========== 1. 初始Token验证 ==========
     try:
         _LOGGER.info("初始化Token验证...")
         result = await api.async_refresh_token()
@@ -224,9 +219,8 @@ async def async_setup_entry(
             _LOGGER.warning("Token验证返回空，可能已过期")
     except Exception as e:
         _LOGGER.error(f"Token初始化失败: {e}")
-        # 继续启动，让定时器继续尝试刷新
 
-    # ========== 2. 数据更新协调器（每50分钟） ==========
+    # ========== 2. 数据更新协调器 ==========
     async def async_update_data():
         """
         更新数据 - 各接口独立容错，任一失败不影响其他。
@@ -276,6 +270,8 @@ async def async_setup_entry(
                     result["account_balance"] = float(data.get("totalBal", 0) or 0)
         except Exception as e:
             _LOGGER.error(f"获取欠费信息失败: {e}")
+            if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
+                session_timeout_count += 1
 
         # 2. 获取缴费历史
         try:
@@ -286,11 +282,12 @@ async def async_setup_entry(
                     last_pay = pay_result[0]
                     result["last_pay_time"] = last_pay.get("payTime", "未知")
                     result["last_pay_amount"] = float(last_pay.get("payAmount", 0) or 0)
-                    import datetime
-                    current_year = str(datetime.datetime.now().year)
+                    current_year = str(datetime.now().year)
                     result["annual_pay_count"] = sum(1 for p in pay_result if current_year in str(p.get("payTime", "")))
         except Exception as e:
             _LOGGER.error(f"获取缴费历史失败: {e}")
+            if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
+                session_timeout_count += 1
 
         # 3. 获取账单列表（获取抄表日期和阶梯剩余气量）
         try:
@@ -321,6 +318,8 @@ async def async_setup_entry(
                     result["last_bill_penalty"] = float(last_bill.get("penaltyAmt", 0) or 0)
         except Exception as e:
             _LOGGER.error(f"获取账单列表失败: {e}")
+            if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
+                session_timeout_count += 1
 
         # 4. 获取月度用气图表
         try:
@@ -336,6 +335,8 @@ async def async_setup_entry(
                         result["year_avg_gas"] = round(sum(all_gas) / len(all_gas), 1)
         except Exception as e:
             _LOGGER.error(f"获取月度用气图表失败: {e}")
+            if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
+                session_timeout_count += 1
 
         # 5. 获取账单详情（本期读数、用气量、账单金额）
         try:
@@ -373,6 +374,8 @@ async def async_setup_entry(
                 _LOGGER.warning(f"缺少账单信息: bill_ym={bill_ym}, app_no={app_no}")
         except Exception as e:
             _LOGGER.error(f"获取账单详情失败: {e}")
+            if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
+                session_timeout_count += 1
             result["this_gas_used"] = result.get("last_bill_gas_amt", 0)
 
         # 6. 获取绑定信息
@@ -388,6 +391,8 @@ async def async_setup_entry(
                     result["purchase_style"] = cons_info.get("purchaseGasStyle", "未知")
         except Exception as e:
             _LOGGER.error(f"获取绑定信息失败: {e}")
+            if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
+                session_timeout_count += 1
 
         if session_timeout_count >= total_api_calls:
             _LOGGER.critical(f"全部{total_api_calls}个API返回会话超时！Token已完全失效。")
@@ -439,6 +444,11 @@ async def async_setup_entry(
     )
 
     await coordinator.async_config_entry_first_refresh()
+
+    # 存储 coordinator 和 api 到 hass.data（供 button.py 使用）
+    hass.data[DOMAIN].setdefault(config_entry.entry_id, {})
+    hass.data[DOMAIN][config_entry.entry_id]["coordinator"] = coordinator
+    hass.data[DOMAIN][config_entry.entry_id]["api"] = api
 
     # 创建传感器
     entities = [

@@ -11,12 +11,15 @@ import asyncio
 from datetime import datetime
 from typing import Any, Dict, Optional, Callable, Awaitable
 
+import aiohttp
+
 from .const import (
     API_DO_REFRESH_TOKEN,
     API_GET_BINDING_CONS,
     API_GET_BILL_DETAIL,
     API_GET_BO_TOKEN,
     API_GET_GAS_BILL_LIST,
+    API_GET_GAS_BILL_LIST_4_CHART,
     API_GET_LOGIN_INFO,
     API_QUERY_ARREARS,
     API_QUERY_PAY_HISTORY,
@@ -149,7 +152,7 @@ class HuarunGasApi:
                 method,
                 url,
                 headers=headers,
-                timeout=30,
+                timeout=aiohttp.ClientTimeout(total=30),
                 **kwargs,
             ) as response:
                 if response.status != 200:
@@ -186,7 +189,11 @@ class HuarunGasApi:
         _LOGGER.info("开始刷新Token...")
 
         try:
-            async with self._session.get(url, headers=headers, timeout=30) as response:
+            async with self._session.get(
+                url,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as response:
                 if response.status != 200:
                     _LOGGER.error(f"刷新Token HTTP错误: {response.status}")
                     return {}
@@ -256,7 +263,7 @@ class HuarunGasApi:
     async def async_get_gas_bill_list4chart(self, cons_no: str) -> Dict[str, Any]:
         """获取月度用气量图表数据"""
         params = {"consNo": cons_no}
-        return await self._request("GET", "/bill/getGasBillList4Chart", params=params)
+        return await self._request("GET", API_GET_GAS_BILL_LIST_4_CHART, params=params)
 
     async def async_query_arrears(self, cons_no: str) -> Dict[str, Any]:
         """查询欠费 - POST请求，JSON body"""

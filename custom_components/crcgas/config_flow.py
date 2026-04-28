@@ -52,6 +52,25 @@ def _build_interval_schema(default_value=1, default_unit="month"):
     )
 
 
+def _build_user_schema():
+    """构建新增集成的完整表单 Schema（包含 token 字段）"""
+    return vol.Schema(
+        {
+            vol.Required(CONF_REFRESH_TOKEN): str,
+            vol.Required(CONF_BO_TOKEN): str,
+            vol.Required(CONF_WX_CODE): str,
+            vol.Required(
+                CONF_SCAN_INTERVAL,
+                default=1,
+            ): vol.All(vol.Coerce(int)),
+            vol.Required(
+                CONF_SCAN_INTERVAL_UNIT,
+                default="month",
+            ): vol.In(SCAN_INTERVAL_UNITS),
+        }
+    )
+
+
 def _validate_interval(value, unit):
     """验证数值是否符合单位要求（定时/间隔语义）"""
     if unit == "hour":
@@ -123,7 +142,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_build_interval_schema(),
+            data_schema=_build_user_schema(),
             errors=errors,
         )
 
