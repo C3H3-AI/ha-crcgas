@@ -446,9 +446,11 @@ async def async_setup_entry(
     await coordinator.async_config_entry_first_refresh()
 
     # 存储 coordinator 和 api 到 hass.data（供 button.py 使用）
-    hass.data[DOMAIN].setdefault(config_entry.entry_id, {})
-    hass.data[DOMAIN][config_entry.entry_id]["coordinator"] = coordinator
-    hass.data[DOMAIN][config_entry.entry_id]["api"] = api
+    # 使用独立 key，避免 mappingproxy 只读问题（async_forward_entry_setups 是同步调用，
+    # __init__.py 的 hass.data[DOMAIN][entry.entry_id] = dict(entry.data) 还未执行）
+    hass.data[DOMAIN][f"{config_entry.entry_id}_coordinator"] = coordinator
+    hass.data[DOMAIN][f"{config_entry.entry_id}_api"] = api
+    hass.data[DOMAIN][f"{config_entry.entry_id}_cons_no"] = cons_no
 
     # 创建传感器
     entities = [

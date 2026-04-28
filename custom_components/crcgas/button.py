@@ -24,11 +24,11 @@ async def async_setup_entry(
     async_add_entities,
 ):
     """设置按钮实体"""
-    # 从hass.data获取coordinator和api
-    entry_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id, {})
-    coordinator = entry_data.get("coordinator")
-    api = entry_data.get("api")
-    cons_no = config_entry.data.get("cons_no", "")
+    # 从hass.data获取coordinator和api（使用独立key，与__init__.py解耦）
+    hass_domain = hass.data.get(DOMAIN, {})
+    coordinator = hass_domain.get(f"{config_entry.entry_id}_coordinator")
+    api = hass_domain.get(f"{config_entry.entry_id}_api")
+    cons_no = hass_domain.get(f"{config_entry.entry_id}_cons_no") or config_entry.data.get("cons_no", "")
     
     if not coordinator or not api:
         _LOGGER.warning("无法设置按钮实体: coordinator或api未初始化")

@@ -13,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info(f"设置华润燃气集成: {entry.title}")
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = entry.data
+    hass.data[DOMAIN][entry.entry_id] = dict(entry.data)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
