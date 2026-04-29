@@ -464,9 +464,39 @@ async def async_setup_entry(
     ]
     async_add_entities(entities)
 
-    # 异步执行首次刷新（不阻塞平台加载）
-    # 在首次刷新完成前，传感器状态为 unknown，这是正常行为
-    hass.async_create_task(coordinator.async_config_entry_first_refresh())
+    # 异步执行首次刷新 + 自动抓取历史记录
+    async def async_initial_setup():
+        """首次初始化：先刷新传感器数据，再自动抓取历史记录"""
+        try:
+            await coordinator.async_config_entry_first_refresh()
+            _LOGGER.info("首次传感器数据刷新完成")
+        except Exception as e:
+            _LOGGER.error(f"首次传感器数据刷新失败: {e}")
+            return
+
+        # 自动抓取历史记录（仅限首次安装/无历史数据时）
+        try:
+            from .history_storage import async_setup_history_storage
+            storage = await async_setup_history_storage(hass, config_entry.entry_id)
+
+            # 检查是否已有历史数据
+            bill_history = storage.get_bill_history()
+            if bill_history:
+                _LOGGER.debug(f"已有 {len(bill_history)} 条历史账单，跳过自动抓取")
+                return
+
+            _LOGGER.info("首次启动，自动抓取历史记录...")
+            result = await storage.async_fetch_all_bills(api, cons_no)
+            _LOGGER.info(
+                f"首次自动抓取完成: "
+                f"新增{result['new_bills']}条, "
+                f"更新{result['updated_bills']}条, "
+                f"总计{result['total_stored']}条"
+            )
+        except Exception as e:
+            _LOGGER.warning(f"首次自动抓取历史记录失败（按钮可补救）: {e}")
+
+    hass.async_create_task(async_initial_setup())
     
     # 注册服务：抓取历史记录
     async def async_fetch_history_service(call):
