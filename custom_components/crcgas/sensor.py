@@ -67,10 +67,6 @@ class HuarunGasSensor(BaseSensor):
         if self.coordinator.data is not None:
             self.async_write_ha_state()
 
-    async def async_update(self):
-        """更新状态"""
-        await self.coordinator.async_request_refresh()
-
     @property
     def native_value(self):
         """获取传感器值"""
