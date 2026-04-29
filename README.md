@@ -1,6 +1,6 @@
 # 华润燃气 Home Assistant 集成
 
-![Version](https://img.shields.io/badge/version-v1.14-blue)
+![Version](https://img.shields.io/badge/version-v1.2.0-blue)
 ![HA Version](https://img.shields.io/badge/Home%20Assistant-2026.4%2B-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
@@ -50,6 +50,7 @@ cp -r crcgas ~/.homeassistant/custom_components/
 | `sensor.crcgas_account_balance` | 燃气账户余额 | ¥ |
 | `sensor.crcgas_bill_amount` | 账单金额 | ¥ |
 | `sensor.crcgas_penalty_amount` | 违约金 | ¥ |
+| `sensor.crcgas_estimated_gas_bill_amount` | 预估燃气账单 | ¥ |
 
 ### 用气量
 | 传感器实体 | 说明 | 单位 |
@@ -98,8 +99,8 @@ cp -r crcgas ~/.homeassistant/custom_components/
 ### 按钮
 | 按钮实体 | 说明 |
 |----------|------|
-| `button.crcgas_refresh_token` | 重试刷新 Token |
-| `button.crcgas_force_refresh` | 强制刷新数据 |
+| `button.crcgas_fetch_history` | 抓取所有历史记录 |
+| `button.crcgas_refresh_data` | 刷新数据 |
 
 ## 配置选项
 
@@ -112,7 +113,7 @@ cp -r crcgas ~/.homeassistant/custom_components/
 | 月 | 每月指定日期 | 每月 1, 15 号 |
 
 ### Token 刷新
-- Token 约每 4.5 小时自动刷新
+- Token 约每 4.5 小时自动刷新（refresh-token），bo-token 约 3 小时
 - 状态传感器 `sensor.crcgas_integration_status` 可查看当前状态
 
 ## Automation 示例

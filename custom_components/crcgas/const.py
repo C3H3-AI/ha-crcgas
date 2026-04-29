@@ -98,6 +98,11 @@ SENSOR_TYPES = {
         "unit": "¥/m³",
         "icon": "mdi:currency-cny",
     },
+    "estimated_gas_bill_amount": {
+        "name": "预估燃气账单",
+        "unit": "¥",
+        "icon": "mdi:calculator",
+    },
     "this_gas_used": {
         "name": "本期用气量",
         "unit": "m³",

@@ -67,12 +67,14 @@ class CRCGasHistoryStorage:
         """添加缴费记录"""
         record["timestamp"] = datetime.now().isoformat()
         self._data["payment_history"].append(record)
+        self._cleanup_old_data()
         await self.async_save()
 
     async def async_add_bill_record(self, record: Dict[str, Any]):
         """添加账单记录"""
         record["timestamp"] = datetime.now().isoformat()
         self._data["bill_history"].append(record)
+        self._cleanup_old_data()
         await self.async_save()
 
     def _cleanup_old_data(self):
