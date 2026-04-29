@@ -206,8 +206,9 @@ async def async_setup_entry(
     api = HuarunGasApi(refresh_token, bo_token, wx_code, on_token_refresh, session=session)
 
     # 获取配置的扫描间隔，默认1小时
-    scan_interval_val = config_entry.data.get(CONF_SCAN_INTERVAL, 1)
-    scan_interval_unit = config_entry.data.get(CONF_SCAN_INTERVAL_UNIT, "hour")
+    # 优先读取 options（用户通过选项流程修改），其次 data（初始配置）
+    scan_interval_val = config_entry.options.get(CONF_SCAN_INTERVAL, config_entry.data.get(CONF_SCAN_INTERVAL, 1))
+    scan_interval_unit = config_entry.options.get(CONF_SCAN_INTERVAL_UNIT, config_entry.data.get(CONF_SCAN_INTERVAL_UNIT, "hour"))
 
     # 计算实际刷新间隔（hour=小时数，day=固定1小时仅支持定时，week=固定1小时，month=固定1小时）
     # day/week/month 模式下实际刷新由 coordinator 内部逻辑决定，这里统一设为1小时兜底
@@ -217,17 +218,6 @@ async def async_setup_entry(
         # 非小时模式：设为最小1小时，day/week/month 定时逻辑在刷新回调中处理
         scan_interval = timedelta(hours=1)
     _LOGGER.info(f"数据刷新间隔: {scan_interval_val} {scan_interval_unit}（实际: {scan_interval}）")
-
-    # ========== 1. 初始Token验证 ==========
-    try:
-        _LOGGER.info("初始化Token验证...")
-        result = await api.async_refresh_token()
-        if result:
-            _LOGGER.info("Token验证成功")
-        else:
-            _LOGGER.warning("Token验证返回空，可能已过期")
-    except Exception as e:
-        _LOGGER.error(f"Token初始化失败: {e}")
 
     # ========== 2. 数据更新协调器 ==========
     async def async_update_data():
@@ -465,11 +455,8 @@ async def async_setup_entry(
         update_interval=scan_interval,
     )
 
-    await coordinator.async_config_entry_first_refresh()
-
-    # 存储 coordinator 和 api 到 hass.data（供 button.py 使用）
-    # 使用独立 key，避免 mappingproxy 只读问题（async_forward_entry_setups 是同步调用，
-    # __init__.py 的 hass.data[DOMAIN][entry.entry_id] = dict(entry.data) 还未执行）
+    # 立即存储 coordinator 和 api（供 button.py 使用）
+    # 必须在创建传感器之前存储，这样即使平台并行加载，按钮也能获取到
     hass.data[DOMAIN][f"{config_entry.entry_id}_coordinator"] = coordinator
     hass.data[DOMAIN][f"{config_entry.entry_id}_api"] = api
     hass.data[DOMAIN][f"{config_entry.entry_id}_cons_no"] = cons_no
@@ -480,6 +467,10 @@ async def async_setup_entry(
         for sensor_type in SENSOR_TYPES
     ]
     async_add_entities(entities)
+
+    # 异步执行首次刷新（不阻塞平台加载）
+    # 在首次刷新完成前，传感器状态为 unknown，这是正常行为
+    hass.async_create_task(coordinator.async_config_entry_first_refresh())
     
     # 注册服务：抓取历史记录
     async def async_fetch_history_service(call):
