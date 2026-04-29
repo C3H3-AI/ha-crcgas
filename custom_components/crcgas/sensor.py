@@ -206,8 +206,9 @@ async def async_setup_entry(
     api = HuarunGasApi(refresh_token, bo_token, wx_code, on_token_refresh, session=session)
 
     # 获取配置的扫描间隔，默认1小时
-    scan_interval_val = config_entry.data.get(CONF_SCAN_INTERVAL, 1)
-    scan_interval_unit = config_entry.data.get(CONF_SCAN_INTERVAL_UNIT, "hour")
+    # 优先读取 options（用户通过选项流程修改），其次 data（初始配置）
+    scan_interval_val = config_entry.options.get(CONF_SCAN_INTERVAL, config_entry.data.get(CONF_SCAN_INTERVAL, 1))
+    scan_interval_unit = config_entry.options.get(CONF_SCAN_INTERVAL_UNIT, config_entry.data.get(CONF_SCAN_INTERVAL_UNIT, "hour"))
 
     # 计算实际刷新间隔（hour=小时数，day=固定1小时仅支持定时，week=固定1小时，month=固定1小时）
     # day/week/month 模式下实际刷新由 coordinator 内部逻辑决定，这里统一设为1小时兜底
@@ -217,6 +218,11 @@ async def async_setup_entry(
         # 非小时模式：设为最小1小时，day/week/month 定时逻辑在刷新回调中处理
         scan_interval = timedelta(hours=1)
     _LOGGER.info(f"数据刷新间隔: {scan_interval_val} {scan_interval_unit}（实际: {scan_interval}）")
+
+    # 最小间隔保护：防止意外的频繁轮询
+    if scan_interval < timedelta(minutes=30):
+        _LOGGER.warning(f"扫描间隔 {scan_interval} 过短，强制设为30分钟")
+        scan_interval = timedelta(minutes=30)
 
     # ========== 1. 初始Token验证 ==========
     try:
