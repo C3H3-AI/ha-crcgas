@@ -1,6 +1,6 @@
 # 华润燃气 Home Assistant 集成
 
-![Version](https://img.shields.io/badge/version-v1.2.0-blue)
+![Version](https://img.shields.io/badge/version-v1.2.6-blue)
 ![HA Version](https://img.shields.io/badge/Home%20Assistant-2026.4%2B-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
@@ -113,7 +113,9 @@ cp -r crcgas ~/.homeassistant/custom_components/
 | 月 | 每月指定日期 | 每月 1, 15 号 |
 
 ### Token 刷新
-- Token 约每 4.5 小时自动刷新（refresh-token），bo-token 约 3 小时
+- **独立定时器**：v1.2.6 起内置独立 Token 刷新定时器，每小时主动检查并刷新，不再依赖数据拉取周期
+- Token 约 4.5 小时过期（refresh-token），bo-token 约 3 小时
+- 刷新定时器仅在 Token 即将过期（5分钟内）时才执行刷新，避免无谓请求
 - 状态传感器 `sensor.crcgas_integration_status` 可查看当前状态
 
 ## Automation 示例
@@ -169,3 +171,24 @@ automation:
 - 检查网络连接
 - 查看 HA 日志中的集成错误信息
 - 尝试重启 HA Core
+
+## 更新日志
+
+### v1.2.6
+- ✨ 新增独立 Token 刷新定时器，每小时主动检查并刷新 Token
+- 🔧 共享 API 实例，Token 刷新状态在 `__init__.py` 和 `sensor.py` 间同步
+- 🔧 集成启动时立即执行一次 Token 检查
+
+### v1.2.5
+- ✨ 首次启动自动抓取历史记录
+
+### v1.2.4
+- 🐛 修复：删除实体 async_update 避免刷屏
+
+### v1.2.3
+- 🐛 修复：按钮延迟加载 + 非阻塞首次刷新
+
+### v1.2.0
+- ✨ 预估燃气账单传感器
+- ✨ native_value 统一返回 float
+- ✨ 自动保存用气历史
