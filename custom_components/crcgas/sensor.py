@@ -184,22 +184,27 @@ async def async_setup_entry(
     async_add_entities,
 ):
     """设置传感器"""
-    refresh_token = config_entry.data[CONF_REFRESH_TOKEN]
-    bo_token = config_entry.data[CONF_BO_TOKEN]
-    wx_code = config_entry.data[CONF_WX_CODE]
     cons_no = config_entry.data.get(CONF_CONS_NO, "")
 
-    # Token刷新回调：保存新token到config_entry
-    async def on_token_refresh(new_refresh_token: str, new_bo_token: str):
-        """Token刷新后保存"""
-        _LOGGER.info("保存新Token到config_entry")
-        new_data = {**config_entry.data}
-        new_data[CONF_REFRESH_TOKEN] = new_refresh_token
-        new_data[CONF_BO_TOKEN] = new_bo_token
-        hass.config_entries.async_update_entry(config_entry, data=new_data)
+    # 复用 __init__.py 中创建的 API 实例（共享 Token 刷新状态）
+    api = hass.data[DOMAIN].get(f"{config_entry.entry_id}_api")
+    if api is None:
+        # 兜底：如果 __init__ 未创建（不应发生），本地创建
+        _LOGGER.warning("未找到共享API实例，本地创建（Token刷新可能不同步）")
+        refresh_token = config_entry.data[CONF_REFRESH_TOKEN]
+        bo_token = config_entry.data[CONF_BO_TOKEN]
+        wx_code = config_entry.data[CONF_WX_CODE]
 
-    session = async_get_clientsession(hass)
-    api = HuarunGasApi(refresh_token, bo_token, wx_code, on_token_refresh, session=session)
+        async def on_token_refresh(new_refresh_token: str, new_bo_token: str):
+            """Token刷新后保存"""
+            _LOGGER.info("保存新Token到config_entry")
+            new_data = {**config_entry.data}
+            new_data[CONF_REFRESH_TOKEN] = new_refresh_token
+            new_data[CONF_BO_TOKEN] = new_bo_token
+            hass.config_entries.async_update_entry(config_entry, data=new_data)
+
+        session = async_get_clientsession(hass)
+        api = HuarunGasApi(refresh_token, bo_token, wx_code, on_token_refresh, session=session)
 
     # 获取配置的扫描间隔，默认1小时
     # 优先读取 options（用户通过选项流程修改），其次 data（初始配置）
