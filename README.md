@@ -1,6 +1,6 @@
 # 华润燃气 Home Assistant 集成
 
-![Version](https://img.shields.io/badge/version-v1.2.6-blue)
+![Version](https://img.shields.io/badge/version-v1.2.7-blue)
 ![HA Version](https://img.shields.io/badge/Home%20Assistant-2026.4%2B-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
@@ -173,6 +173,10 @@ automation:
 - 尝试重启 HA Core
 
 ## 更新日志
+
+### v1.2.7
+- 🔧 修复 Token 刷新逻辑：每小时无条件刷新 + 剩余<5分钟紧急刷新
+- ✨ 新增紧急刷新定时器（每1分钟检查）
 
 ### v1.2.6
 - ✨ 新增独立 Token 刷新定时器，每小时主动检查并刷新 Token
