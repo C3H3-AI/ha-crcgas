@@ -1,6 +1,8 @@
 """华润燃气 Home Assistant 集成"""
 import logging
 
+from datetime import timedelta
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -47,33 +49,49 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # 存储到 hass.data，供 sensor.py 复用
     hass.data[DOMAIN][f"{entry.entry_id}_api"] = api
 
-    async def _async_refresh_token(now=None):
-        """独立定时器回调：每小时主动刷新 Token"""
+    async def _async_refresh_token_hourly(now=None):
+        """每小时定时器回调：无条件刷新 Token"""
         try:
-            # 先检查是否即将过期，避免无谓请求
-            if api.is_token_expiring_soon(threshold_seconds=int(TOKEN_EXPIRE_THRESHOLD.total_seconds())):
-                _LOGGER.info("独立定时器: Token即将过期，开始刷新...")
-                await api.async_refresh_token()
-                _LOGGER.info("独立定时器: Token刷新成功")
-            else:
-                remaining = api.get_token_remaining_seconds()
-                _LOGGER.debug(f"独立定时器: Token仍有效，剩余{remaining}秒，跳过刷新")
+            remaining = api.get_token_remaining_seconds()
+            _LOGGER.info(f"独立定时器[整点]: 开始刷新Token，当前剩余{remaining}秒")
+            await api.async_refresh_token()
+            _LOGGER.info("独立定时器[整点]: Token刷新成功")
         except SessionTimeoutError:
-            _LOGGER.error("独立定时器: Token刷新失败(会话超时)，Token已完全失效，需要重新登录")
+            _LOGGER.error("独立定时器[整点]: Token刷新失败(会话超时)，Token已完全失效，需要重新登录")
         except Exception as e:
-            _LOGGER.error(f"独立定时器: Token刷新异常: {e}")
+            _LOGGER.error(f"独立定时器[整点]: Token刷新异常: {e}")
 
-    # 启动独立定时器：每小时执行一次
-    cancel_timer = async_track_time_interval(
+    async def _async_refresh_token_urgent(now=None):
+        """紧急刷新回调：Token 剩余时间不足5分钟时刷新"""
+        try:
+            remaining = api.get_token_remaining_seconds()
+            threshold_seconds = int(TOKEN_EXPIRE_THRESHOLD.total_seconds())
+            if remaining is None or remaining >= threshold_seconds:
+                return
+            _LOGGER.info(f"独立定时器[紧急]: Token剩余{remaining}秒(<{threshold_seconds}秒)，立即刷新...")
+            await api.async_refresh_token()
+            _LOGGER.info("独立定时器[紧急]: Token刷新成功")
+        except SessionTimeoutError:
+            _LOGGER.error("独立定时器[紧急]: Token刷新失败(会话超时)，Token已完全失效，需要重新登录")
+        except Exception as e:
+            _LOGGER.error(f"独立定时器[紧急]: Token刷新异常: {e}")
+
+    cancel_timer_hourly = async_track_time_interval(
         hass,
-        _async_refresh_token,
+        _async_refresh_token_hourly,
         TOKEN_REFRESH_INTERVAL,
     )
-    hass.data[DOMAIN][f"{entry.entry_id}_token_timer_cancel"] = cancel_timer
-    _LOGGER.info(f"独立Token刷新定时器已启动，间隔: {TOKEN_REFRESH_INTERVAL}")
+    cancel_timer_urgent = async_track_time_interval(
+        hass,
+        _async_refresh_token_urgent,
+        timedelta(minutes=1),
+    )
+    hass.data[DOMAIN][f"{entry.entry_id}_token_timer_cancel"] = cancel_timer_hourly
+    hass.data[DOMAIN][f"{entry.entry_id}_token_timer_urgent_cancel"] = cancel_timer_urgent
+    _LOGGER.info(f"独立Token刷新定时器已启动，整点刷新间隔: {TOKEN_REFRESH_INTERVAL}，紧急检查间隔: 1分钟")
 
-    # 启动后立即执行一次 Token 检查
-    hass.async_create_task(_async_refresh_token())
+    # 启动后立即执行一次整点刷新
+    hass.async_create_task(_async_refresh_token_hourly())
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
@@ -83,10 +101,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info(f"卸载华润燃气集成: {entry.title}")
 
     # 取消独立 Token 刷新定时器
-    cancel_timer = hass.data[DOMAIN].pop(f"{entry.entry_id}_token_timer_cancel", None)
-    if cancel_timer:
-        cancel_timer()
-        _LOGGER.info("独立Token刷新定时器已取消")
+    cancel_timer_hourly = hass.data[DOMAIN].pop(f"{entry.entry_id}_token_timer_cancel", None)
+    if cancel_timer_hourly:
+        cancel_timer_hourly()
+        _LOGGER.info("独立Token刷新定时器[整点]已取消")
+    cancel_timer_urgent = hass.data[DOMAIN].pop(f"{entry.entry_id}_token_timer_urgent_cancel", None)
+    if cancel_timer_urgent:
+        cancel_timer_urgent()
+        _LOGGER.info("独立Token刷新定时器[紧急]已取消")
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
