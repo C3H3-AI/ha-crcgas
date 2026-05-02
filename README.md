@@ -135,6 +135,30 @@ automation:
           message: "您有燃气欠费 ¥{{ states('sensor.crcgas_arrears') }}"
 ```
 
+## 仪表盘卡片
+
+### 统一账单卡片（推荐）
+
+推荐使用 [统一账单卡片](https://github.com/C3H3-AI/ha-utility-bill-card)，同时支持华润燃气和温州水务。
+
+1. **添加资源引用**
+   - 进入 设置 → 仪表盘 → 资源
+   - 点击"添加资源"
+   - URL: `/local/community/utility-bill-card/utility-bill-card.js`
+   - 类型: 选择 **JavaScript 模块**
+
+2. **添加卡片到仪表盘**
+   - 打开任意仪表盘，点击右上角"编辑"
+   - 点击"添加卡片"
+   - 选择"手动配置"（或在搜索中搜索）
+   - 粘贴以下配置：
+
+   ```yaml
+   type: custom:utility-bill-card
+   entity: sensor.crcgas_account_balance
+   title: 华润燃气
+   ```
+
 ## 故障排除
 
 ### Token 相关错误
