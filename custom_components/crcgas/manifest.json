@@ -6,6 +6,7 @@
   "documentation": "https://github.com/C3H3-AI/ha-crcgas",
   "issue_tracker": "https://github.com/C3H3-AI/ha-crcgas/issues",
   "requirements": [],
+  "authors": ["@C3H3-AI"],
   "codeowners": ["@C3H3-AI"],
   "integration_type": "device",
   "iot_class": "cloud_polling",
