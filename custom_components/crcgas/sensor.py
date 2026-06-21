@@ -76,46 +76,46 @@ class HuarunGasSensor(BaseSensor):
 
         if self.sensor_type == "arrears":
             v = data.get("arrears")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "account_balance":
             v = data.get("account_balance")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "last_pay_time":
             v = data.get("last_pay_time")
             return v if v and v != "未知" else "未知"
         elif self.sensor_type == "last_pay_amount":
             v = data.get("last_pay_amount")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "annual_pay_count":
             v = data.get("annual_pay_count")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "this_read":
             v = data.get("this_read")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "this_read_time":
             v = data.get("this_read_time")
             return v if v and v != "未知" else "未知"
         elif self.sensor_type == "step1_gas_used":
             v = data.get("step1_gas_used")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "step2_gas_used":
             v = data.get("step2_gas_used")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "this_gas_used":
             v = data.get("this_gas_used")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "bill_amount":
             v = data.get("bill_amount")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "step1_remain":
             v = data.get("step1_remain")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "step2_remain":
             v = data.get("step2_remain")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "penalty_amount":
             v = data.get("penalty_amount")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "cons_addr":
             v = data.get("cons_addr")
             return v if v and v != "未知" else "未知"
@@ -131,25 +131,25 @@ class HuarunGasSensor(BaseSensor):
             return style_map.get(v, v) if v else "未知"
         elif self.sensor_type == "last_month_gas":
             v = data.get("last_month_gas")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "year_avg_gas":
             v = data.get("year_avg_gas")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "integration_status":
             v = data.get("integration_status")
             return v if v else "unknown"
         elif self.sensor_type == "monthly_gas_used":
             v = data.get("monthly_gas_used")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "gas_price_step1":
             v = data.get("gas_price_step1")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "gas_price_step2":
             v = data.get("gas_price_step2")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         elif self.sensor_type == "estimated_gas_bill_amount":
             v = data.get("estimated_gas_bill_amount")
-            return float(v) if v is not None else 0.0
+            return float(v) if v is not None else None
         return None
 
 
@@ -226,28 +226,28 @@ async def async_setup_entry(
         更新数据 - 各接口独立容错，任一失败不影响其他。
         """
         result = {
-            "arrears": 0,
-            "account_balance": 0,
+            "arrears": None,
+            "account_balance": None,
             "last_pay_time": "未知",
-            "last_pay_amount": 0,
-            "annual_pay_count": 0,
-            "this_read": 0,
+            "last_pay_amount": None,
+            "annual_pay_count": None,
+            "this_read": None,
             "this_read_time": "未知",
-            "step1_gas_used": 0,
-            "step2_gas_used": 0,
-            "this_gas_used": 0,
-            "bill_amount": 0,
-            "step1_remain": 0,
-            "step2_remain": 0,
-            "penalty_amount": 0,
+            "step1_gas_used": None,
+            "step2_gas_used": None,
+            "this_gas_used": None,
+            "bill_amount": None,
+            "step1_remain": None,
+            "step2_remain": None,
+            "penalty_amount": None,
             "cons_addr": "未知",
             "org_name": "未知",
             "gas_nature": "未知",
             "purchase_style": "未知",
-            "last_month_gas": 0,
-            "year_avg_gas": 0,
+            "last_month_gas": None,
+            "year_avg_gas": None,
             "integration_status": "unknown",
-            "monthly_gas_used": 0,
+            "monthly_gas_used": None,
         }
         session_timeout_count = 0
         total_api_calls = 6
