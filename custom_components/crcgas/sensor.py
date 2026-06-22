@@ -628,6 +628,13 @@ async def async_setup_entry(
                     result["_last_app_no"] = last_bill.get("applicationNo", "")
                     result["last_bill_gas_amt"] = float(last_bill.get("gasAmt", 0) or 0)
                     result["last_bill_penalty"] = float(last_bill.get("penaltyAmt", 0) or 0)
+                    # 找最近的非零 gasAmt（用于本月账单未出时的兜底）
+                    result["_fallback_gas_amt"] = 0
+                    for b in bills:
+                        ga = float(b.get("gasAmt", 0) or 0)
+                        if ga > 0:
+                            result["_fallback_gas_amt"] = ga
+                            break
         except Exception as e:
             _LOGGER.error(f"获取账单列表失败: {e}")
             if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
@@ -733,6 +740,24 @@ async def async_setup_entry(
                 result["step2_gas_used"] = 0
                 # 调整一档用气量，确保总和等于本期用气量
                 result["step1_gas_used"] = this_gas_used
+
+        # ========== 负数修复：本月账单未出时用气量/表读数为0，保持上月非零值 ==========
+        this_gas_value = result.get("this_gas_used") or 0
+        if this_gas_value <= 0:
+            fb = result.get("_fallback_gas_amt", 0)
+            lm = result.get("last_month_gas", 0)
+            if fb > 0:
+                result["this_gas_used"] = fb
+                _LOGGER.info("本月账单未出，用气量使用最近非零账单值: %s m³", fb)
+            elif lm > 0:
+                result["this_gas_used"] = lm
+                _LOGGER.info("本月账单未出，用气量使用上月值: %s m³", lm)
+
+        # 修复总表读数（this_read / total_gas_consumption）为 0 时保持上次值
+        # 能源面板用：当月用量 = 本月累计 - 上月累计，表读数为 0 会导致负数
+        if result.get("this_read", 0) == 0 and self.data and self.data.get("total_gas_consumption", 0) > 0:
+            result["this_read"] = self.data["total_gas_consumption"]
+            _LOGGER.info("本月账单未出，总表读数保持上次值: %s m³", result["this_read"])
 
         # 计算预估燃气账单（基于阶梯用气量和气价）
         step1_gas = result.get("step1_gas_used", 0)
