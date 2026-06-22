@@ -1,38 +1,20 @@
 /**
- * crcgas-statistics-card — 华润燃气月度用气量和燃气费趋势卡片
+ * crcgas-statistics-card — 华润燃气统计仪表盘卡片
+ *
+ * 借鉴 xiaoshi930/state_grid_info 卡片设计风格:
+ * - 顶部余额+状态
+ * - 阶梯用量进度条
+ * - 月度柱状图（用气量+费用双轴）
+ * - 底部汇总
  *
  * 配置示例:
  *   type: custom:crcgas-statistics-card
- *   title: 燃气用量统计   (可选，默认: 🔥 燃气用量统计)
- *   year: 2026          (可选，默认: 当前年)
- *   gas_statistic: crcgas:monthly_gas_usage  (可选，默认)
- *   bill_statistic: crcgas:monthly_bill_amount (可选，默认)
- *   entity: sensor.crcgas_account_balance    (可选，用于显示当前余额)
+ *   title: 我家燃气统计
+ *   entity: sensor.chu_fang_hua_run_ran_qi_ran_qi_zhang_hu_yu_e
  */
 
-import { LitElement, html, css } from 'lit';
+const MONTHS_ZH = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
-/* ─── SVG 工具 ─── */
-function barSvg(values, maxVal, unit, color, height = 100, barWidth = 20, gap = 6) {
-  const total = values.length * (barWidth + gap) - gap;
-  const w = Math.max(total, 180);
-  const bars = values.map((v, i) => {
-    const h = maxVal > 0 ? (v / maxVal) * (height - 10) : 0;
-    const x = i * (barWidth + gap);
-    const y = height - h;
-    return `<rect x="${x}" y="${y}" width="${barWidth}" height="${h || 1}" rx="3" fill="${color}" opacity="${v > 0 ? 0.85 : 0.15}"/>`;
-  }).join('');
-
-  // Month labels along bottom
-  const labels = values.map((v, i) => {
-    const x = i * (barWidth + gap) + barWidth / 2;
-    return `<text x="${x}" y="${height + 4}" text-anchor="middle" font-size="8" fill="var(--secondary-text-color, #888)">${i + 1}</text>`;
-  }).join('');
-
-  return `<svg width="${w}" height="${height + 14}" viewBox="0 0 ${w} ${height + 14}">${bars}${labels}</svg>`;
-}
-
-/* ─── 卡片定义 ─── */
 class CrcgasStatisticsCard extends LitElement {
   static get properties() {
     return {
@@ -42,293 +24,308 @@ class CrcgasStatisticsCard extends LitElement {
       _gasData: { type: Array, state: true },
       _billData: { type: Array, state: true },
       _totals: { type: Object, state: true },
+      _balance: { type: Number, state: true },
+      _step1Remain: { type: Number, state: true },
+      _step2Remain: { type: Number, state: true },
+      _status: { type: String, state: true },
       _loading: { type: Boolean, state: true },
       _error: { type: String, state: true },
+      _showCost: { type: Boolean, state: true },
     };
   }
 
   setConfig(config) {
+    if (!config) throw new Error('Invalid configuration');
     this.config = {
-      title: config.title || '🔥 燃气用量统计',
-      gas_statistic: config.gas_statistic || 'crcgas:monthly_gas_usage',
-      bill_statistic: config.bill_statistic || 'crcgas:monthly_bill_amount',
-      entity: config.entity || '',
-      ...config,
+      title: config.title || '🔥 燃气统计',
+      gasStatistic: config.gas_statistic || 'crcgas:monthly_gas_usage',
+      billStatistic: config.bill_statistic || 'crcgas:monthly_bill_amount',
+      balanceEntity: config.entity || '',
+      year: config.year || new Date().getFullYear(),
     };
-    if (!this._year) this._year = new Date().getFullYear();
+    this._year = this.config.year;
+    this._showCost = true;
   }
-
-  getCardSize() { return 7; }
 
   connectedCallback() {
     super.connectedCallback();
-    if (this.hass && !this._year) {
-      this._year = new Date().getFullYear();
-      this._loadData();
-    }
+    this._loadData();
   }
 
   updated(changedProps) {
     super.updated(changedProps);
-    if (changedProps.has('hass') && this.hass && !this._gasData) {
-      if (!this._year) this._year = new Date().getFullYear();
-      this._loadData();
-    }
+    if (changedProps.has('_year')) this._loadData();
   }
 
   async _loadData() {
     if (!this.hass) return;
     this._loading = true;
     this._error = '';
-    const year = this._year;
-
     try {
-      const start = `${year}-01-01T00:00:00+08:00`;
-      const end = `${year + 1}-01-01T00:00:00+08:00`;
-
+      const start = new Date(this._year, 0, 1).toISOString();
+      const end = new Date(this._year + 1, 0, 1).toISOString();
       const [gasResult, billResult] = await Promise.all([
         this.hass.callWS({
           type: 'recorder/statistics_during_period',
-          statistic_ids: [this.config.gas_statistic],
           start_time: start,
           end_time: end,
+          statistic_ids: [this.config.gasStatistic],
           period: 'month',
         }),
         this.hass.callWS({
           type: 'recorder/statistics_during_period',
-          statistic_ids: [this.config.bill_statistic],
           start_time: start,
           end_time: end,
+          statistic_ids: [this.config.billStatistic],
           period: 'month',
         }),
       ]);
 
-      // Parse gas data — extract per-month state values
-      const gasRaw = gasResult?.[this.config.gas_statistic] || [];
-      const billRaw = billResult?.[this.config.bill_statistic] || [];
+      const gasStats = gasResult?.[this.config.gasStatistic] || [];
+      const billStats = billResult?.[this.config.billStatistic] || [];
 
-      // group by month (1-12)
-      const gasByMonth = new Array(12).fill(0);
-      const billByMonth = new Array(12).fill(0);
-
-      for (const entry of gasRaw) {
-        const d = new Date(entry.start);
-        const m = d.getUTCMonth(); // 0-based
-        if (m >= 0 && m < 12) gasByMonth[m] += (entry.sum || 0);
+      // Build month-indexed lookup
+      const gasByMonth = {};
+      for (const s of gasStats) {
+        const d = new Date(s.start);
+        const m = d.getMonth();
+        gasByMonth[m] = s;
+      }
+      const billByMonth = {};
+      for (const s of billStats) {
+        const d = new Date(s.start);
+        const m = d.getMonth();
+        billByMonth[m] = s;
       }
 
-      for (const entry of billRaw) {
-        const d = new Date(entry.start);
-        const m = d.getUTCMonth();
-        if (m >= 0 && m < 12) billByMonth[m] += (entry.sum || 0);
+      const gasData = [];
+      const billData = [];
+      let totalGas = 0, totalBill = 0, monthsWithData = 0;
+
+      for (let m = 0; m < 12; m++) {
+        const g = gasByMonth[m];
+        const b = billByMonth[m];
+        const gasVal = g ? (g.sum || g.state || 0) : 0;
+        const billVal = b ? (b.sum || b.state || 0) : 0;
+        gasData.push(Number(gasVal.toFixed(1)));
+        billData.push(Number(billVal.toFixed(2)));
+        if (g && g.sum > 0) { totalGas += (g.sum || g.state || 0); monthsWithData++; }
+        if (b && b.sum > 0) totalBill += (b.sum || b.state || 0);
       }
 
-      // Calculate deltas between months for "total_increasing" type
-      const gasMonthly = new Array(12).fill(0);
-      const billMonthly = new Array(12).fill(0);
-      let prevGas = 0, prevBill = 0;
-      for (let i = 0; i < 12; i++) {
-        gasMonthly[i] = Math.round((gasByMonth[i] - prevGas) * 100) / 100;
-        billMonthly[i] = Math.round((billByMonth[i] - prevBill) * 100) / 100;
-        prevGas = gasByMonth[i];
-        prevBill = billByMonth[i];
+      this._gasData = gasData;
+      this._billData = billData;
+      this._totals = {
+        totalGas: Number(totalGas.toFixed(1)),
+        totalBill: Number(totalBill.toFixed(2)),
+        monthsWithData,
+      };
+
+      // Read current entity values for balance, tier, status
+      if (this.config.balanceEntity && this.hass.states[this.config.balanceEntity]) {
+        this._balance = parseFloat(this.hass.states[this.config.balanceEntity].state) || 0;
       }
+      // Try to find step sensors
+      const prefix = 'sensor.chu_fang_hua_run_ran_qi';
+      const s1 = this.hass.states[`${prefix}_yi_dang_sheng_yu_qi_liang`];
+      const s2 = this.hass.states[`${prefix}_er_dang_sheng_yu_qi_liang`];
+      this._step1Remain = s1 ? parseFloat(s1.state) || 0 : null;
+      this._step2Remain = s2 ? parseFloat(s2.state) || 0 : null;
+      const st = this.hass.states[`${prefix}_ji_cheng_zhuang_tai`];
+      this._status = st ? st.state : null;
 
-      // Totals
-      const totalGas = gasMonthly.reduce((a, b) => a + b, 0);
-      const totalBill = billMonthly.reduce((a, b) => a + b, 0);
-      const monthsWithData = gasMonthly.filter(v => v > 0).length;
-
-      this._gasData = gasMonthly;
-      this._billData = billMonthly;
-      this._totals = { totalGas, totalBill, monthsWithData };
-      this._loading = false;
     } catch (e) {
+      console.error('crcgas-card: load failed', e);
       this._error = e.message || '数据加载失败';
-      this._loading = false;
     }
+    this._loading = false;
   }
 
-  _changeYear(delta) {
-    this._year += delta;
-    this._gasData = null;
-    this._billData = null;
-    this._totals = null;
-    this._loadData();
-  }
-
-  _format(v) {
-    return typeof v === 'number' ? v.toFixed(1) : '0';
+  /* ─── 渲染柱状图 ─── */
+  _renderBars(values, unit, color, maxVal) {
+    if (!values || values.length === 0) return html`<div class="empty">暂无数据</div>`;
+    const max = maxVal || Math.max(...values, 1);
+    const barWidth = 22;
+    const gap = 4;
+    return html`
+      <div class="chart-container">
+        <div class="y-label">${max}${unit}</div>
+        <div class="bars">
+          ${values.map((v, i) => {
+            const h = max > 0 ? (v / max) * 120 : 0;
+            const hasData = v > 0;
+            return html`
+              <div class="bar-col" @click=${() => this._showCost = !this._showCost}>
+                <div class="bar-value" style="opacity:${hasData ? 1 : 0.3}">${hasData ? v.toFixed(v % 1 === 0 ? 0 : 1) : '-'}</div>
+                <div class="bar-track">
+                  <div class="bar-fill" style="height:${Math.max(h, 2)}px;background:${color};opacity:${hasData ? 0.85 : 0.1}"></div>
+                </div>
+                <div class="bar-label">${i + 1}</div>
+              </div>`;
+          })}
+        </div>
+      </div>`;
   }
 
   render() {
-    const title = this.config.title;
-    const currentYear = new Date().getFullYear();
+    if (!this.hass) return html`<ha-card><div class="loading">等待连接...</div></ha-card>`;
+
+    // Stepped pricing progress
+    const totalTier = (this._step1Remain !== null && this._step2Remain !== null)
+      ? this._step1Remain + this._step2Remain : null;
 
     return html`
       <ha-card>
-        <div class="header">
-          <span class="title">${title}</span>
-          <div class="year-nav">
-            <button class="nav-btn" @click=${() => this._changeYear(-1)}
-              ?disabled=${this._loading}>‹</button>
-            <span class="year-label">${this._year}</span>
-            <button class="nav-btn" @click=${() => this._changeYear(1)}
-              ?disabled=${this._loading || this._year >= currentYear}>›</button>
+        <div class="card-body">
+          <!-- Header -->
+          <div class="header">
+            <div class="header-title">${this.config.title}</div>
+            <div class="year-nav">
+              <button class="nav-btn" @click=${() => this._year--}>&lsaquo;</button>
+              <span class="year-text">${this._year}</span>
+              <button class="nav-btn" @click=${() => this._year++}>&rsaquo;</button>
+            </div>
           </div>
+
+          ${this._loading ? html`<div class="loading"><ha-circular-progress indeterminate></ha-circular-progress></div>` : ''}
+          ${this._error ? html`<div class="error">⚠ ${this._error}</div>` : ''}
+
+          ${!this._loading && !this._error ? html`
+            <!-- Status Bar -->
+            <div class="status-bar">
+              ${this._balance !== null ? html`
+                <div class="stat-item">
+                  <div class="stat-value ${this._balance < 10 ? 'warn' : ''}">¥${this._balance.toFixed(2)}</div>
+                  <div class="stat-label">账户余额</div>
+                </div>` : ''}
+              <div class="stat-item">
+                <div class="stat-value">${this._totals?.totalGas ?? '-'}</div>
+                <div class="stat-label">年用量 (m³)</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">¥${(this._totals?.totalBill ?? 0).toFixed(0)}</div>
+                <div class="stat-label">年费用</div>
+              </div>
+              ${this._status ? html`
+                <div class="stat-item">
+                  <div class="stat-value status-dot ${this._status === 'normal' || this._status === '正常' ? 'ok' : 'err'}"></div>
+                  <div class="stat-label">${this._status}</div>
+                </div>` : ''}
+            </div>
+
+            <!-- Tier Progress -->
+            ${totalTier !== null ? html`
+            <div class="tier-section">
+              <div class="section-title">阶梯用量</div>
+              <div class="tier-bar">
+                <div class="tier-track">
+                  <div class="tier-fill tier-1" style="flex:${this._step1Remain}"></div>
+                  <div class="tier-fill tier-2" style="flex:${this._step2Remain}"></div>
+                </div>
+                <div class="tier-labels">
+                  <span>一档余 ${this._step1Remain}m³</span>
+                  <span>二档余 ${this._step2Remain}m³</span>
+                </div>
+              </div>
+            </div>` : ''}
+
+            <!-- Gas Usage Chart -->
+            <div class="chart-section">
+              <div class="section-title">月度用气量 (m³)</div>
+              ${this._renderBars(this._gasData, 'm³', 'var(--gas-color, #ff7043)', Math.max(...this._gasData, 10))}
+            </div>
+
+            <!-- Cost Chart -->
+            <div class="chart-section">
+              <div class="section-title">月度燃气费 (CNY)</div>
+              ${this._renderBars(this._billData, '¥', 'var(--cost-color, #7c4dff)', Math.max(...this._billData, 10))}
+            </div>
+
+            <!-- Footer Summary -->
+            <div class="footer">
+              <div class="footer-row">
+                <span>${this._year}年用气量</span>
+                <span class="footer-val">${this._totals?.totalGas ?? '-'} m³</span>
+              </div>
+              <div class="footer-row">
+                <span>${this._year}年费用</span>
+                <span class="footer-val">¥${(this._totals?.totalBill ?? 0).toFixed(2)}</span>
+              </div>
+              <div class="footer-row">
+                <span>有数据月数</span>
+                <span class="footer-val">${this._totals?.monthsWithData ?? 0} 个月</span>
+              </div>
+            </div>
+          ` : ''}
         </div>
-
-        ${this._loading ? html`
-          <div class="loading">
-            <ha-circular-progress size="small" active></ha-circular-progress>
-            <span>加载中...</span>
-          </div>
-        ` : this._error ? html`
-          <div class="error">⚠ ${this._error}</div>
-        ` : this._gasData ? html`
-          <div class="charts">
-            <div class="chart-section">
-              <div class="chart-title">
-                <ha-icon icon="mdi:fire" style="width:16px;height:16px;color:var(--warning-color,#ff9800)"></ha-icon>
-                <span>月度用气量 (m³)</span>
-              </div>
-              <div class="chart-body chart-gas">
-                ${this._renderSvgChart('gas')}
-              </div>
-            </div>
-
-            <div class="chart-section">
-              <div class="chart-title">
-                <ha-icon icon="mdi:currency-cny" style="width:16px;height:16px;color:var(--success-color,#43a047)"></ha-icon>
-                <span>月度燃气费 (¥)</span>
-              </div>
-              <div class="chart-body chart-bill">
-                ${this._renderSvgChart('bill')}
-              </div>
-            </div>
-          </div>
-
-          <div class="summary">
-            <div class="sum-item">
-              <span class="sum-label">${this._year} 年用量</span>
-              <span class="sum-val">${this._format(this._totals.totalGas)} m³</span>
-            </div>
-            <div class="sum-item">
-              <span class="sum-label">${this._year} 年费用</span>
-              <span class="sum-val">¥${this._format(this._totals.totalBill)}</span>
-            </div>
-            <div class="sum-item">
-              <span class="sum-label">有数据月数</span>
-              <span class="sum-val">${this._totals.monthsWithData} 个月</span>
-            </div>
-            ${this.config.entity && this.hass?.states?.[this.config.entity] ? html`
-              <div class="sum-item">
-                <span class="sum-label">当前余额</span>
-                <span class="sum-val">¥${this._format(this.hass.states[this.config.entity].state)}</span>
-              </div>
-            ` : ''}
-          </div>
-        ` : html`
-          <div class="empty">暂无数据</div>
-        `}
-      </ha-card>
-    `;
-  }
-
-  _renderSvgChart(type) {
-    const data = type === 'gas' ? this._gasData : this._billData;
-    if (!data) return '';
-    const max = Math.max(...data, 1);
-    const color = type === 'gas'
-      ? 'var(--warning-color, #ff9800)'
-      : 'var(--success-color, #43a047)';
-    return html`<div class="svg-wrap">${barSvg(data, max, type === 'gas' ? 'm³' : '¥', color)}</div>`;
+      </ha-card>`;
   }
 
   static get styles() {
     return css`
-      :host { display: block; }
-      ha-card {
-        padding: 14px 16px 12px;
-        font-family: var(--paper-font-body1_-_font-family, inherit);
-      }
-      .header {
-        display: flex; align-items: center; justify-content: space-between;
-        margin-bottom: 12px;
-      }
-      .title {
-        font-size: 16px; font-weight: 600;
-        color: var(--primary-text-color);
-      }
-      .year-nav {
-        display: flex; align-items: center; gap: 6px;
-      }
-      .nav-btn {
-        width: 28px; height: 28px; border-radius: 50%;
-        border: 1px solid var(--divider-color, #ddd);
-        background: var(--card-background-color, #fff);
-        color: var(--primary-text-color);
-        font-size: 16px; cursor: pointer;
-        display: flex; align-items: center; justify-content: center;
-        line-height: 1; padding: 0;
-      }
-      .nav-btn:disabled { opacity: 0.3; cursor: default; }
-      .nav-btn:hover:not(:disabled) {
-        background: var(--secondary-background-color, #f5f5f5);
-      }
-      .year-label {
-        font-size: 14px; font-weight: 500; min-width: 42px; text-align: center;
-      }
+      :host { --gas-color: #ff7043; --cost-color: #7c4dff; }
+      ha-card { border-radius: 12px; overflow: hidden; }
+      .card-body { padding: 16px; }
 
-      .loading {
-        display: flex; align-items: center; justify-content: center; gap: 8px;
-        padding: 30px 0; color: var(--secondary-text-color); font-size: 13px;
-      }
-      .error { padding: 20px; text-align: center; font-size: 13px; color: var(--error-color, #db4437); }
-      .empty { padding: 30px; text-align: center; font-size: 13px; color: var(--secondary-text-color); }
+      /* Header */
+      .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+      .header-title { font-size: 16px; font-weight: 600; color: var(--primary-text-color); }
+      .year-nav { display: flex; align-items: center; gap: 8px; }
+      .nav-btn { background: var(--secondary-background-color); border: 1px solid var(--divider-color); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 16px; color: var(--primary-text-color); line-height: 1; }
+      .nav-btn:hover { background: var(--primary-color); color: #fff; }
+      .year-text { font-size: 14px; font-weight: 500; min-width: 44px; text-align: center; color: var(--primary-text-color); }
 
-      .charts { display: flex; flex-direction: column; gap: 14px; }
-      .chart-section { }
-      .chart-title {
-        display: flex; align-items: center; gap: 4px;
-        font-size: 11px; font-weight: 500;
-        color: var(--secondary-text-color); margin-bottom: 4px;
-      }
-      .svg-wrap {
-        overflow-x: auto; overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-        padding: 2px 0;
-      }
-      .svg-wrap::-webkit-scrollbar { height: 3px; }
-      .svg-wrap::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb-color, #ccc); border-radius: 3px; }
+      /* Status bar */
+      .status-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; background: var(--secondary-background-color); border-radius: 10px; padding: 12px; }
+      .stat-item { flex: 1; min-width: 70px; text-align: center; }
+      .stat-value { font-size: 18px; font-weight: 700; color: var(--primary-text-color); }
+      .stat-value.warn { color: #f44336; }
+      .stat-label { font-size: 11px; color: var(--secondary-text-color); margin-top: 2px; }
+      .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin: 4px 0; }
+      .status-dot.ok { background: #4caf50; }
+      .status-dot.err { background: #f44336; }
 
-      .summary {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-        gap: 8px; margin-top: 12px; padding-top: 10px;
-        border-top: 1px solid var(--divider-color, #eee);
-      }
-      .sum-item {
-        text-align: center;
-      }
-      .sum-label {
-        display: block; font-size: 10px;
-        color: var(--secondary-text-color); margin-bottom: 2px;
-      }
-      .sum-val {
-        display: block; font-size: 15px; font-weight: 600;
-        color: var(--primary-text-color);
-      }
+      /* Tier progress */
+      .tier-section { margin-bottom: 14px; }
+      .section-title { font-size: 12px; font-weight: 600; color: var(--secondary-text-color); margin-bottom: 6px; }
+      .tier-bar { }
+      .tier-track { display: flex; height: 16px; border-radius: 8px; overflow: hidden; background: var(--divider-color); }
+      .tier-fill { transition: flex 0.3s; }
+      .tier-1 { background: linear-gradient(90deg, #66bb6a, #43a047); }
+      .tier-2 { background: linear-gradient(90deg, #ffa726, #f57c00); }
+      .tier-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--secondary-text-color); margin-top: 4px; }
+
+      /* Chart */
+      .chart-section { margin-bottom: 14px; }
+      .chart-container { display: flex; align-items: flex-end; gap: 6px; position: relative; min-height: 140px; }
+      .y-label { position: absolute; top: 0; right: 0; font-size: 10px; color: var(--secondary-text-color); }
+      .bars { display: flex; align-items: flex-end; gap: 4px; flex: 1; height: 130px; padding-top: 16px; }
+      .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; cursor: pointer; }
+      .bar-value { font-size: 9px; color: var(--secondary-text-color); margin-bottom: 2px; white-space: nowrap; }
+      .bar-track { width: 100%; max-width: 24px; height: 120px; background: var(--divider-color); border-radius: 4px; position: relative; display: flex; align-items: flex-end; }
+      .bar-fill { width: 100%; border-radius: 4px; transition: height 0.3s; min-height: 2px; }
+      .bar-label { font-size: 9px; color: var(--secondary-text-color); margin-top: 3px; }
+
+      /* Footer */
+      .footer { border-top: 1px solid var(--divider-color); padding-top: 10px; margin-top: 4px; }
+      .footer-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; color: var(--primary-text-color); }
+      .footer-val { font-weight: 600; }
+
+      /* States */
+      .loading { padding: 40px; text-align: center; color: var(--secondary-text-color); }
+      .error { padding: 20px; text-align: center; color: #f44336; font-size: 13px; }
+      .empty { padding: 20px; text-align: center; color: var(--secondary-text-color); font-size: 12px; }
     `;
   }
+
+  getCardSize() { return 6; }
 }
 
 customElements.define('crcgas-statistics-card', CrcgasStatisticsCard);
-
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: 'crcgas-statistics-card',
   name: '华润燃气统计',
-  description: '显示华润燃气的月度用气量和费用趋势图',
+  description: '华润燃气月度用气量和费用趋势',
   preview: true,
 });
