@@ -30,23 +30,11 @@ except ImportError:
 from .api import HuarunGasApi, SessionTimeoutError
 _STATE_CLASS_MAP = {
     "this_gas_used": _SSC.TOTAL_INCREASING,
-    "monthly_gas_used": _SSC.TOTAL_INCREASING, 
+    "monthly_gas_used": _SSC.TOTAL_INCREASING,
     "step1_gas_used": _SSC.TOTAL_INCREASING,
     "step2_gas_used": _SSC.TOTAL_INCREASING,
-    "bill_amount": _SSC.MEASUREMENT,
-    "estimated_gas_bill_amount": _SSC.MEASUREMENT,
-    "account_balance": _SSC.MEASUREMENT,
-    "arrears": _SSC.MEASUREMENT,
-    "last_pay_amount": _SSC.MEASUREMENT,
     "annual_pay_count": _SSC.TOTAL_INCREASING,
     "this_read": _SSC.TOTAL_INCREASING,
-    "last_month_gas": _SSC.MEASUREMENT,
-    "year_avg_gas": _SSC.MEASUREMENT,
-    "step1_remain": _SSC.MEASUREMENT,
-    "step2_remain": _SSC.MEASUREMENT,
-    "penalty_amount": _SSC.MEASUREMENT,
-    "gas_price_step1": _SSC.MEASUREMENT,
-    "gas_price_step2": _SSC.MEASUREMENT,
     "total_gas_consumption": _SSC.TOTAL_INCREASING,
 }
 
@@ -272,6 +260,8 @@ def _import_history_statistics(hass, entry, bill_history):
         name="历史月度用气量", source=DOMAIN,
         statistic_id=f"{DOMAIN}:monthly_gas_usage",
         unit_of_measurement="m³",
+        mean_type="none",
+        unit_class="gas",
     )
     gas_stats = []
     cumulative_gas = 0.0
@@ -284,7 +274,7 @@ def _import_history_statistics(hass, entry, bill_history):
         start = datetime(year, month, 1, tzinfo=timezone.utc)
         end = (datetime(year, month+1, 1, tzinfo=timezone.utc)
                if month < 12 else datetime(year+1, 1, 1, tzinfo=timezone.utc))
-        gas_stats.append({"start": start, "end": end, "state": gas_amt, "sum": cumulative_gas})
+        gas_stats.append({"start": start, "end": end, "state": gas_amt, "sum": cumulative_gas, "mean": 0.0})
     async_add_external_statistics(hass, gas_metadata, gas_stats)
     _LOGGER.info("已导入 %d 条历史用气量统计", len(gas_stats))
 
@@ -294,6 +284,8 @@ def _import_history_statistics(hass, entry, bill_history):
         name="历史月度燃气费", source=DOMAIN,
         statistic_id=f"{DOMAIN}:monthly_bill_amount",
         unit_of_measurement="CNY",
+        mean_type="none",
+        unit_class="monetary",
     )
     bill_stats = []
     cumulative_bill = 0.0
@@ -306,7 +298,7 @@ def _import_history_statistics(hass, entry, bill_history):
         start = datetime(year, month, 1, tzinfo=timezone.utc)
         end = (datetime(year, month+1, 1, tzinfo=timezone.utc)
                if month < 12 else datetime(year+1, 1, 1, tzinfo=timezone.utc))
-        bill_stats.append({"start": start, "end": end, "state": bill_amt, "sum": cumulative_bill})
+        bill_stats.append({"start": start, "end": end, "state": bill_amt, "sum": cumulative_bill, "mean": 0.0})
     async_add_external_statistics(hass, bill_metadata, bill_stats)
     _LOGGER.info("已导入 %d 条历史燃气费统计", len(bill_stats))
 
