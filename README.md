@@ -1,6 +1,6 @@
 # 华润燃气 Home Assistant 集成
 
-![Version](https://img.shields.io/badge/version-v1.3.0-blue)
+![Version](https://img.shields.io/badge/version-v2.0.0-blue)
 ![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.1%2B-green)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 ![License](https://img.shields.io/github/license/C3H3-AI/ha-crcgas?color=orange)
@@ -42,7 +42,7 @@ cp -r crcgas ~/.homeassistant/custom_components/
 3. 填写 `refresh-token`、`bo-token`、`wxCode`
 4. 完成配置
 
-## 传感器（27个）
+## 传感器（28个）
 
 ### 账单与余额
 | 传感器 | 说明 | 单位 | device_class |
@@ -89,12 +89,14 @@ cp -r crcgas ~/.homeassistant/custom_components/
 | 燃气类型 | 天然气/液化气 |
 | 购气方式 | 物联网表/IC卡 |
 | **燃气表总读数** ⭐ | 能源面板专用累计值 |
+| **燃气表历史累计** ⭐ | 36个月完整历史累计 |
+| **累计燃气费用** ⭐ | 历史账单+当前预估总和 |
 
 ### 按钮
 | 按钮 | 说明 |
 |------|------|
 | 刷新数据 | 手动触发数据更新 |
-| 抓取历史记录 | 拉取所有历史账单 |
+| 抓取历史记录 | 拉取所有历史账单并注入能源面板统计 |
 
 ## 功能特性
 
@@ -105,7 +107,9 @@ cp -r crcgas ~/.homeassistant/custom_components/
 ### 📊 能源面板
 - 所有传感器正确设置 `device_class`（gas/monetary）
 - `燃气表总读数` 累计传感器可接入 HA 能源面板作为燃气总表
+- **`燃气表历史累计` 传感器** ⭐ — 将 36 个月历史用气数据完整注入统计表，首次启动自动填充
 - 历史账单数据自动导入 HA 统计系统，支持趋势图表
+- **零外部依赖** — 使用 Python 内置 sqlite3 直写数据库，不依赖 SQLAlchemy
 
 ### 🔔 异常通知
 - Token 过期或网络异常时自动推送 HA 通知
@@ -127,11 +131,11 @@ cp -r crcgas ~/.homeassistant/custom_components/
 ## 仪表盘卡片
 
 ### 燃气统计卡片
-v1.3.0 提供了一个专用 Lovelace 卡片，展示月度用气量和燃气费趋势。
+v2.0.0 提供了一个专用 Lovelace 卡片，展示月度用气量和燃气费趋势。
 
 **添加：**
 1. 设置 → 仪表盘 → 资源 → 添加资源
-2. URL: `/local/crcgas-statistics-card.js`
+2. URL: `/local/community/crcgas-card/crcgas-statistics-card.js`
 3. 类型: JavaScript 模块
 4. 编辑仪表盘 → + 添加卡片 → 搜索「华润燃气统计」
 
@@ -179,6 +183,14 @@ automation:
 - 尝试重启 HA Core
 
 ## 更新日志
+
+### v2.0.0 (2026-06-22)
+- ✨ **燃气表历史累计传感器** — 专为能源面板设计，显示完整历史趋势
+- ✨ **SQLite 直写统计注入** — 零外部依赖，Python 内置 sqlite3 直写数据库
+- ✨ **一键抓取+注入** — 按钮触发时自动删除旧统计并写入 36 个月完整累计数据
+- ✨ **启动安全** — `only_missing` 模式，已有统计时跳过，不删除历史数据
+- 🐛 **修复 SQLAlchemy 兼容性问题** — HA 2026.6.4 不再依赖 recorder 引擎
+- 🐛 **修复启动时数据丢失** — 避免重启时误删已注入的历史统计
 
 ### v1.3.0 (2026-06-22)
 - ✨ **API 并行请求** — 4 个接口同时查询，刷新 1-2 秒

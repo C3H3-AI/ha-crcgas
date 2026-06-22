@@ -1,6 +1,6 @@
-"""华润燃气 传感器平台 - v1.3.0
+"""华润燃气 传感器平台 - v2.0.0
 
-v1.3.0 新增：API并行请求、device_class/state_class、能源面板适配、阶梯动态读取、总消耗量累计传感器
+v2.0.0 新增：历史累计传感器、SQLite直写统计注入、依赖零外部库、一键抓取按钮
 """
 
 import asyncio
@@ -18,6 +18,8 @@ from homeassistant.components.sensor.const import SensorStateClass as _SSC
 
 from homeassistant.components.sensor import SensorEntity as BaseSensor
 
+from homeassistant.helpers import entity_registry as er
+
 from .api import HuarunGasApi, SessionTimeoutError
 _STATE_CLASS_MAP = {
     "this_gas_used": _SSC.TOTAL_INCREASING,
@@ -27,27 +29,28 @@ _STATE_CLASS_MAP = {
     "annual_pay_count": _SSC.TOTAL_INCREASING,
     "this_read": _SSC.TOTAL_INCREASING,
     "total_gas_consumption": _SSC.TOTAL_INCREASING,
+    "total_gas_cost": _SSC.TOTAL_INCREASING,
+    "arrears": _SSC.MEASUREMENT,
+    "account_balance": _SSC.MEASUREMENT,
+    "last_pay_amount": _SSC.MEASUREMENT,
+    "bill_amount": _SSC.MEASUREMENT,
+    "estimated_gas_bill_amount": _SSC.MEASUREMENT,
+    "penalty_amount": _SSC.MEASUREMENT,
+    "step1_remain": _SSC.MEASUREMENT,
+    "step2_remain": _SSC.MEASUREMENT,
+    "year_avg_gas": _SSC.MEASUREMENT,
+    "last_month_gas": _SSC.MEASUREMENT,
+    "gas_price_step1": _SSC.MEASUREMENT,
+    "gas_price_step2": _SSC.MEASUREMENT,
 }
 
 _DEVICE_CLASS_MAP = {
-    "this_gas_used": "gas",
     "monthly_gas_used": "gas",
     "total_gas_consumption": "gas",
+    "total_gas_cost": "monetary",
     "step1_gas_used": "gas",
     "step2_gas_used": "gas",
     "this_read": "gas",
-    "last_month_gas": "gas",
-    "year_avg_gas": "gas",
-    "step1_remain": "gas",
-    "step2_remain": "gas",
-    "bill_amount": "monetary",
-    "estimated_gas_bill_amount": "monetary",
-    "account_balance": "monetary",
-    "arrears": "monetary",
-    "last_pay_amount": "monetary",
-    "penalty_amount": "monetary",
-    "gas_price_step1": "monetary",
-    "gas_price_step2": "monetary",
 }
 
 
@@ -188,6 +191,9 @@ class HuarunGasSensor(BaseSensor):
             return float(v) if v is not None else None
         elif self.sensor_type == "total_gas_consumption":
             return self._get_total_gas_consumption(data)
+        elif self.sensor_type == "total_gas_cost":
+            v = data.get("total_gas_cost")
+            return float(v) if v is not None else None
         elif self.sensor_type == "gas_price_step1":
             v = data.get("gas_price_step1")
             return float(v) if v is not None else None
@@ -200,6 +206,45 @@ class HuarunGasSensor(BaseSensor):
         return None
 
 
+class HuarunGasMeterHistorySensor(BaseSensor):
+    """燃气表历史累计传感器 — 用于能源面板显示完整历史数据"""
+
+    def __init__(self, coordinator, entry_id):
+        self._coordinator = coordinator
+        self._entry_id = entry_id
+        self._attr_unique_id = f"{DOMAIN}_{entry_id}_gas_meter_history"
+        self._attr_name = "燃气表历史累计"
+        self._attr_icon = "mdi:counter"
+        self._attr_native_unit_of_measurement = "m³"
+        self._attr_state_class = _SSC.TOTAL_INCREASING
+        self._attr_device_class = "gas"
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, self._entry_id)},
+            "name": "华润燃气",
+            "manufacturer": "华润燃气",
+        }
+
+    @property
+    def available(self):
+        return self._coordinator.last_update_success
+
+    @property
+    def native_value(self):
+        data = self._coordinator.data
+        if data:
+            v = data.get("this_read")
+            return float(v) if v is not None else None
+        return None
+
+    async def async_added_to_hass(self):
+        self.async_on_remove(
+            self._coordinator.async_add_listener(self.async_write_ha_state)
+        )
+        if self._coordinator.data is not None:
+            self.async_write_ha_state()
 
 
 async def _calculate_step_usage(result, api, cons_no):
@@ -225,10 +270,9 @@ async def _calculate_step_usage(result, api, cons_no):
         _LOGGER.error(f"计算阶梯用气量失败: {e}")
 
 
-def _import_history_statistics(hass, entry, bill_history):
+async def _import_history_statistics(hass, entry, bill_history, current_reading=None):
     """将历史账单数据导入 HA 统计系统，形成趋势图"""
     try:
-        from homeassistant.components.recorder import get_instance
         from homeassistant.components.recorder.statistics import (
             async_add_external_statistics,
             StatisticMetaData,
@@ -256,14 +300,16 @@ def _import_history_statistics(hass, entry, bill_history):
     cumulative_gas = 0.0
     for bill in sorted_bills:
         ym = bill.get("billYm", "")
-        if not ym or len(ym) != 6: continue
-        year, month = int(ym[:4]), int(ym[4:6])
+        if not ym or len(ym) < 7: continue
+        year, month = int(ym[:4]), int(ym[5:7])
         gas_amt = float(bill.get("gasAmt", 0) or 0)
         cumulative_gas += gas_amt
         start = datetime(year, month, 1, tzinfo=timezone.utc)
-        end = (datetime(year, month+1, 1, tzinfo=timezone.utc)
-               if month < 12 else datetime(year+1, 1, 1, tzinfo=timezone.utc))
-        gas_stats.append({"start": start, "end": end, "state": gas_amt, "sum": cumulative_gas, "mean": 0.0})
+        gas_stats.append({
+            "start": start, "state": gas_amt, "sum": cumulative_gas,
+            "min": gas_amt, "max": gas_amt, "mean": 0.0, "mean_weight": 0.0,
+            "last_reset": start,
+        })
     async_add_external_statistics(hass, gas_metadata, gas_stats)
     _LOGGER.info("已导入 %d 条历史用气量统计", len(gas_stats))
 
@@ -279,16 +325,122 @@ def _import_history_statistics(hass, entry, bill_history):
     cumulative_bill = 0.0
     for bill in sorted_bills:
         ym = bill.get("billYm", "")
-        if not ym or len(ym) != 6: continue
-        year, month = int(ym[:4]), int(ym[4:6])
+        if not ym or len(ym) < 7: continue
+        year, month = int(ym[:4]), int(ym[5:7])
         bill_amt = float(bill.get("billAmt", 0) or 0)
         cumulative_bill += bill_amt
         start = datetime(year, month, 1, tzinfo=timezone.utc)
-        end = (datetime(year, month+1, 1, tzinfo=timezone.utc)
-               if month < 12 else datetime(year+1, 1, 1, tzinfo=timezone.utc))
-        bill_stats.append({"start": start, "end": end, "state": bill_amt, "sum": cumulative_bill, "mean": 0.0})
+        bill_stats.append({
+            "start": start, "state": bill_amt, "sum": cumulative_bill,
+            "min": bill_amt, "max": bill_amt, "mean": 0.0, "mean_weight": 0.0,
+            "last_reset": start,
+        })
     async_add_external_statistics(hass, bill_metadata, bill_stats)
     _LOGGER.info("已导入 %d 条历史燃气费统计", len(bill_stats))
+
+
+async def _import_meter_history_to_entity(hass, entry, bill_history, only_missing=False):
+    """通过 sqlite3 直接写入历史累计统计到 recorder 数据库
+    only_missing=True: 只检查数据库中是否有记录，无记录时才注入（启动时用，不删除已有数据）
+    only_missing=False: 先删后插（按钮触发时用）
+    """
+    import sqlite3
+    from datetime import datetime, timezone
+    import time as time_mod
+
+    history_unique_id = f"{DOMAIN}_{entry.entry_id}_gas_meter_history"
+    entity_reg = er.async_get(hass)
+    entity_id = entity_reg.async_get_entity_id("sensor", DOMAIN, history_unique_id)
+    if not entity_id:
+        _LOGGER.warning("燃气表历史累计传感器尚未注册，跳过")
+        return
+
+    sorted_bills = sorted(bill_history, key=lambda b: b.get("billYm", ""))
+    stats_data = []
+    cumulative = 0.0
+    for bill in sorted_bills:
+        ym = bill.get("billYm", "")
+        if not ym or len(ym) < 7:
+            continue
+        year, month = int(ym[:4]), int(ym[5:7])
+        gas_amt = float(bill.get("gasAmt", 0) or 0)
+        cumulative += gas_amt
+        start_ts = datetime(year, month, 1, tzinfo=timezone.utc).timestamp()
+        stats_data.append((start_ts, cumulative))
+
+    if not stats_data:
+        _LOGGER.warning("无账单数据，跳过历史累计注入")
+        return
+
+    db_path = hass.config.path("home-assistant_v2.db")
+    now = time_mod.time()
+
+    def _do_inject():
+        conn = None
+        try:
+            conn = sqlite3.connect(db_path, timeout=10)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("BEGIN IMMEDIATE")
+
+            if only_missing:
+                row = conn.execute(
+                    "SELECT id FROM statistics_meta WHERE statistic_id = ?",
+                    (entity_id,),
+                ).fetchone()
+                if row:
+                    existing = conn.execute(
+                        "SELECT COUNT(*) FROM statistics WHERE metadata_id = ?",
+                        (row[0],),
+                    ).fetchone()
+                    if existing and existing[0] >= 10:
+                        _LOGGER.info("已有 %d 条历史累计记录，跳过自动注入", existing[0])
+                        conn.rollback()
+                        return
+                _LOGGER.info("未发现历史累计记录，执行首次自动注入")
+
+            conn.execute(
+                "INSERT OR IGNORE INTO statistics_meta "
+                "(statistic_id, source, unit_of_measurement, has_mean, has_sum, name) "
+                "VALUES (?, ?, ?, 0, 1, '燃气表历史累计')",
+                (entity_id, DOMAIN, "m³"),
+            )
+
+            row = conn.execute(
+                "SELECT id FROM statistics_meta WHERE statistic_id = ?",
+                (entity_id,),
+            ).fetchone()
+            if row is None:
+                _LOGGER.error("无法获取 statistics_meta id（statistic_id=%s）", entity_id)
+                conn.rollback()
+                return
+
+            mid = row[0]
+            conn.execute("DELETE FROM statistics WHERE metadata_id = ?", (mid,))
+            conn.execute("DELETE FROM statistics_short_term WHERE metadata_id = ?", (mid,))
+
+            rows = [(mid, ts, val, val, val, val, 0.0, ts, now) for ts, val in stats_data]
+            conn.executemany(
+                "INSERT INTO statistics "
+                "(metadata_id, start_ts, state, sum, min, max, mean, last_reset_ts, created_ts) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                rows,
+            )
+
+            conn.commit()
+            _LOGGER.info("已注入 %d 条历史累计到 %s", len(stats_data), entity_id)
+        except sqlite3.Error as e:
+            _LOGGER.error("SQLite 写入历史累计失败: %s", e)
+            if conn:
+                conn.rollback()
+        except Exception as e:
+            _LOGGER.error("注入历史累计时发生意外错误: %s", e)
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                conn.close()
+
+    await hass.async_add_executor_job(_do_inject)
 
 
 async def async_setup_entry(
@@ -361,6 +513,7 @@ async def async_setup_entry(
             "year_avg_gas": None,
             "integration_status": "unknown",
             "monthly_gas_used": None,
+            "total_gas_cost": None,
         "step1_gas_limit": None,
         "step2_gas_limit": None,
         "gas_price_step1": None,
@@ -591,6 +744,19 @@ async def async_setup_entry(
             result["estimated_gas_bill_amount"] = round(estimated_water, 2)
         else:
             result["estimated_gas_bill_amount"] = 0.0
+
+        # 累计燃气费用（能源面板用）= 历史账单总和 + 当前预估账单
+        try:
+            from .history_storage import CRCGasHistoryStorage
+            cost_storage = CRCGasHistoryStorage(hass, config_entry.entry_id)
+            await cost_storage.async_load()
+            cost_history = cost_storage.get_bill_history(limit=999)
+            historical_cost = sum(float(b.get("billAmt", 0) or 0) for b in cost_history)
+            current_cost = float(result.get("estimated_gas_bill_amount", 0) or 0)
+            result["total_gas_cost"] = round(historical_cost + current_cost, 2)
+        except Exception as e:
+            _LOGGER.warning(f"计算累计燃气费用失败: {e}")
+            result["total_gas_cost"] = None
         
         _LOGGER.info(f"数据更新完成: 欠费¥{result['arrears']}, 读数{result['this_read']}, 状态={result['integration_status']}, 一档用气量={result['step1_gas_used']}, 二档用气量={result['step2_gas_used']}")
         return result
@@ -614,6 +780,8 @@ async def async_setup_entry(
         HuarunGasSensor(coordinator, sensor_type)
         for sensor_type in SENSOR_TYPES
     ]
+    # 新增：燃气表历史累计传感器（能源面板用）
+    entities.append(HuarunGasMeterHistorySensor(coordinator, config_entry.entry_id))
     async_add_entities(entities)
 
     # 异步执行首次刷新 + 自动抓取历史记录
@@ -631,7 +799,6 @@ async def async_setup_entry(
             from .history_storage import async_setup_history_storage
             storage = await async_setup_history_storage(hass, config_entry.entry_id)
 
-            # 检查是否已有历史数据
             bill_history = storage.get_bill_history()
             if bill_history:
                 _LOGGER.debug(f"已有 {len(bill_history)} 条历史账单，跳过自动抓取")
@@ -646,9 +813,14 @@ async def async_setup_entry(
                 )
                 bill_history = storage.get_bill_history()
 
-            # 导入历史统计数据到 HA 统计系统
             if bill_history:
-                _import_history_statistics(hass, config_entry, bill_history)
+                current_reading = coordinator.data.get("this_read") if coordinator.data else None
+                await _import_history_statistics(hass, config_entry, bill_history, current_reading)
+                # 自动注入历史累计数据到统计表（首次无数据时才执行）
+                try:
+                    await _import_meter_history_to_entity(hass, config_entry, bill_history, only_missing=True)
+                except Exception as e:
+                    _LOGGER.warning(f"历史累计传感器注入失败（重启后自动重试）: {e}")
         except Exception as e:
             _LOGGER.warning(f"首次自动抓取历史记录失败（按钮可补救）: {e}")
 
@@ -669,10 +841,20 @@ async def async_setup_entry(
                 f"更新{result['updated_bills']}条, "
                 f"总计{result['total_stored']}条"
             )
-            # 导入历史统计数据
+            # 导入历史统计数据（面板趋势图用）
             bill_history = storage.get_bill_history()
             if bill_history:
-                _import_history_statistics(hass, config_entry, bill_history)
+                coordinator = hass.data[DOMAIN].get(f"{config_entry.entry_id}_coordinator")
+                current_reading = coordinator.data.get("this_read") if coordinator and coordinator.data else None
+                try:
+                    await _import_history_statistics(hass, config_entry, bill_history, current_reading)
+                except Exception as e:
+                    _LOGGER.warning("导入月度统计失败（不影响历史累计传感器）: %s", e)
+                # 向历史累计传感器注入数据（能源面板用）
+                try:
+                    await _import_meter_history_to_entity(hass, config_entry, bill_history)
+                except Exception as e:
+                    _LOGGER.error(f"注入历史累计传感器失败: {e}")
             return {"success": True, "result": result}
         except Exception as e:
             _LOGGER.error(f"抓取历史记录失败: {e}")

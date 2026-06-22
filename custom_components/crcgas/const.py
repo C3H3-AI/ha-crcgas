@@ -145,6 +145,11 @@ SENSOR_TYPES = {
         "unit": "m³",
         "icon": "mdi:counter",
     },
+    "total_gas_cost": {
+        "name": "累计燃气费用",
+        "unit": "CNY",
+        "icon": "mdi:cash-multiple",
+    },
     # === 中等价值 ===
     "cons_addr": {
         "name": "用气地址",
