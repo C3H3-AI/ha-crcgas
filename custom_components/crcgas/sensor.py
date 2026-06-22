@@ -16,16 +16,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from homeassistant.components.sensor.const import SensorStateClass as _SSC
 
-try:
-    from homeassistant.components.sensor import SensorEntity as BaseSensor, SensorDeviceClass
-except ImportError:
-    from homeassistant.components.sensor import SensorEntity as BaseSensor
-    SensorDeviceClass = None
-
-try:
-    from homeassistant.const import EntityCategory
-except ImportError:
-    EntityCategory = None
+from homeassistant.components.sensor import SensorEntity as BaseSensor
 
 from .api import HuarunGasApi, SessionTimeoutError
 _STATE_CLASS_MAP = {
@@ -58,8 +49,6 @@ _DEVICE_CLASS_MAP = {
     "gas_price_step1": "monetary",
     "gas_price_step2": "monetary",
 }
-
-
 
 
 from .const import (
@@ -243,6 +232,7 @@ def _import_history_statistics(hass, entry, bill_history):
         from homeassistant.components.recorder.statistics import (
             async_add_external_statistics,
             StatisticMetaData,
+            StatisticMeanType,
         )
     except ImportError:
         _LOGGER.warning("recorder 组件不可用，无法导入历史统计")
@@ -260,8 +250,7 @@ def _import_history_statistics(hass, entry, bill_history):
         name="历史月度用气量", source=DOMAIN,
         statistic_id=f"{DOMAIN}:monthly_gas_usage",
         unit_of_measurement="m³",
-        mean_type="none",
-        unit_class="gas",
+        mean_type=StatisticMeanType.NONE,
     )
     gas_stats = []
     cumulative_gas = 0.0
@@ -284,8 +273,7 @@ def _import_history_statistics(hass, entry, bill_history):
         name="历史月度燃气费", source=DOMAIN,
         statistic_id=f"{DOMAIN}:monthly_bill_amount",
         unit_of_measurement="CNY",
-        mean_type="none",
-        unit_class="monetary",
+        mean_type=StatisticMeanType.NONE,
     )
     bill_stats = []
     cumulative_bill = 0.0
@@ -543,24 +531,25 @@ async def async_setup_entry(
             else:
                 result["integration_status"] = "normal"
 
-        # ========== 异常通知 ==========
+        # ========== 异常通知（通过服务调用，避免 hass.components 不可用） ==========
         status_str = hass.data.get(f"{DOMAIN}_last_status_{config_entry.entry_id}")
         new_status = result["integration_status"]
         if new_status != "normal" and new_status != status_str:
-            # 状态从正常变为异常 → 发通知
             msg = INTEGRATION_STATUS.get(new_status, new_status)
-            hass.components.persistent_notification.async_create(
-                f"华润燃气集成状态异常: {msg}\n\n请检查 Token 是否过期或网络是否正常。",
-                title="华润燃气 - 集成异常",
-                notification_id=f"crcgas_error_{config_entry.entry_id}",
-            )
-        elif new_status == "normal" and status_str and status_str != "normal":
-            # 状态恢复 → 清除通知
             try:
-                hass.components.persistent_notification.async_dismiss(
-                    notification_id=f"crcgas_error_{config_entry.entry_id}"
-                )
-            except:
+                hass.services.async_call("persistent_notification", "create", {
+                    "title": "华润燃气 - 集成异常",
+                    "message": f"华润燃气集成状态异常: {msg}\n\n请检查 Token 是否过期或网络是否正常。",
+                    "notification_id": f"crcgas_error_{config_entry.entry_id}",
+                }, blocking=False)
+            except Exception:
+                _LOGGER.warning("发送异常通知失败")
+        elif new_status == "normal" and status_str and status_str != "normal":
+            try:
+                hass.services.async_call("persistent_notification", "dismiss", {
+                    "notification_id": f"crcgas_error_{config_entry.entry_id}",
+                }, blocking=False)
+            except Exception:
                 pass
         hass.data[f"{DOMAIN}_last_status_{config_entry.entry_id}"] = new_status
 

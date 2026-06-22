@@ -71,39 +71,11 @@ class FetchHistoryButton(ButtonEntity):
         """按钮按下时触发"""
         _LOGGER.info("用户触发: 抓取所有历史记录")
 
-        # 动态获取 api（如果之前未获取）
-        if not self._api:
-            hass_domain = self.hass.data.get(DOMAIN, {})
-            self._api = hass_domain.get(f"{self.config_entry.entry_id}_api")
-
-        if not self._api:
-            _LOGGER.error("api 未初始化，请稍后重试或重启 Home Assistant")
-            return
-
-        # 动态获取 cons_no（如果之前未获取）
-        if not self._cons_no:
-            hass_domain = self.hass.data.get(DOMAIN, {})
-            self._cons_no = hass_domain.get(f"{self.config_entry.entry_id}_cons_no") or self.config_entry.data.get("cons_no", "")
-
-        from .history_storage import async_setup_history_storage
-
-        storage = await async_setup_history_storage(self.hass, self.config_entry.entry_id)
-
+        # 调用已注册的 crcgas.fetch_history 服务（它包含统计导入逻辑）
         try:
-            result = await storage.async_fetch_all_bills(self._api, self._cons_no)
-            _LOGGER.info(
-                f"历史记录抓取完成: "
-                f"新增{result['new_bills']}条, "
-                f"更新{result['updated_bills']}条, "
-                f"总计{result['total_stored']}条"
+            await self.hass.services.async_call(
+                DOMAIN, "fetch_history", {}, blocking=True
             )
-
-            # 触发事件通知前端
-            self.hass.bus.async_fire("crcgas_history_fetched", {
-                "config_entry_id": self.config_entry.entry_id,
-                "result": result,
-            })
-
         except Exception as e:
             _LOGGER.error(f"抓取历史记录失败: {e}")
 
