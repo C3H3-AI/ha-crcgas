@@ -1,10 +1,14 @@
 # 华润燃气 Home Assistant 集成
 
-![Version](https://img.shields.io/badge/version-v1.2.7-blue)
-![HA Version](https://img.shields.io/badge/Home%20Assistant-2026.4%2B-green)
-![License](https://img.shields.io/badge/license-MIT-orange)
+![Version](https://img.shields.io/badge/version-v1.3.0-blue)
+![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.1%2B-green)
+[![HACS Badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+![License](https://img.shields.io/github/license/C3H3-AI/ha-crcgas?color=orange)
+![GitHub Stars](https://img.shields.io/github/stars/C3H3-AI/ha-crcgas)
+![Downloads](https://img.shields.io/github/downloads/C3H3-AI/ha-crcgas/total)
+![Last Commit](https://img.shields.io/github/last-commit/C3H3-AI/ha-crcgas)
 
-通过 Home Assistant 集成查看燃气账单、欠费、用气量、气价等信息。
+通过 Home Assistant 集成查看燃气账单、欠费、用气量、气价等信息，支持能源面板。
 
 ## 安装
 
@@ -18,7 +22,6 @@
 
 ### 方法2: 手动安装
 ```bash
-# 复制到 custom_components 目录
 cp -r crcgas ~/.homeassistant/custom_components/
 ```
 
@@ -39,72 +42,81 @@ cp -r crcgas ~/.homeassistant/custom_components/
 3. 填写 `refresh-token`、`bo-token`、`wxCode`
 4. 完成配置
 
-## 传感器
-
-安装后创建以下传感器：
+## 传感器（27个）
 
 ### 账单与余额
-| 传感器实体 | 说明 | 单位 |
-|------------|------|------|
-| `sensor.crcgas_arrears` | 欠费金额 | ¥ |
-| `sensor.crcgas_account_balance` | 燃气账户余额 | ¥ |
-| `sensor.crcgas_bill_amount` | 账单金额 | ¥ |
-| `sensor.crcgas_penalty_amount` | 违约金 | ¥ |
-| `sensor.crcgas_estimated_gas_bill_amount` | 预估燃气账单 | ¥ |
+| 传感器 | 说明 | 单位 | device_class |
+|--------|------|:----:|:-----------:|
+| 欠费金额 | 当前欠费 | ¥ | monetary |
+| 燃气账户余额 | 账户余额 | ¥ | monetary |
+| 最近缴费金额 | 上次缴费金额 | ¥ | monetary |
+| 违约金 | 逾期违约金 | ¥ | monetary |
+| 账单金额 | 本期账单金额 | ¥ | monetary |
+| 预估燃气账单 | 按阶梯价计算 | ¥ | monetary |
 
 ### 用气量
-| 传感器实体 | 说明 | 单位 |
-|------------|------|------|
-| `sensor.crcgas_this_gas_used` | 本期用气量 | m³ |
-| `sensor.crcgas_step1_gas_used` | 一档用气量 | m³ |
-| `sensor.crcgas_step2_gas_used` | 二档用气量 | m³ |
-| `sensor.crcgas_monthly_gas_used` | 本月累计用气量 | m³ |
-| `sensor.crcgas_last_month_gas` | 上月用气量 | m³ |
-| `sensor.crcgas_year_avg_gas` | 年度月均用气量 | m³ |
+| 传感器 | 说明 | 单位 | device_class |
+|--------|------|:----:|:-----------:|
+| 本期表读数 | 燃气表总读数 | m³ | gas |
+| 本期用气量 | 本期用量 | m³ | gas |
+| 本月累计用气量 | 当月累计 | m³ | gas |
+| 一档用气量 | 第一阶梯用量 | m³ | gas |
+| 二档用气量 | 第二阶梯用量 | m³ | gas |
+| 上月用气量 | 上期用量(参考) | m³ | gas |
+| 年度月均用气量 | 12月平均 | m³ | gas |
 
-### 气价
-| 传感器实体 | 说明 | 单位 |
-|------------|------|------|
-| `sensor.crcgas_gas_price_step1` | 一档气价 | ¥/m³ |
-| `sensor.crcgas_gas_price_step2` | 二档气价 | ¥/m³ |
+### 气价与档位
+| 传感器 | 说明 | 单位 |
+|--------|------|:----:|
+| 一档气价 | 第一阶梯单价 | ¥/m³ |
+| 二档气价 | 第二阶梯单价 | ¥/m³ |
+| 一档剩余气量 | 第一阶梯余量 | m³ |
+| 二档剩余气量 | 第二阶梯余量 | m³ |
 
-### 档位
-| 传感器实体 | 说明 | 单位 |
-|------------|------|------|
-| `sensor.crcgas_step1_remain` | 一档剩余气量 | m³ |
-| `sensor.crcgas_step2_remain` | 二档剩余气量 | m³ |
-
-### 抄表信息
-| 传感器实体 | 说明 | 单位 |
-|------------|------|------|
-| `sensor.crcgas_this_read` | 本期表读数 | m³ |
-| `sensor.crcgas_this_read_time` | 本期抄表时间 | - |
-
-### 缴费记录
-| 传感器实体 | 说明 | 单位 |
-|------------|------|------|
-| `sensor.crcgas_last_pay_time` | 最近缴费时间 | - |
-| `sensor.crcgas_last_pay_amount` | 最近缴费金额 | ¥ |
-| `sensor.crcgas_annual_pay_count` | 年度缴费次数 | - |
+### 时间信息
+| 传感器 | 说明 |
+|--------|------|
+| 本期抄表时间 | 上次抄表日期 |
+| 最近缴费时间 | 最近一次缴费时间 |
+| 年度缴费次数 | 当年缴费次数 |
 
 ### 信息类
-| 传感器实体 | 说明 |
-|------------|------|
-| `sensor.crcgas_cons_addr` | 用气地址 |
-| `sensor.crcgas_org_name` | 燃气公司 |
-| `sensor.crcgas_gas_nature` | 燃气类型 |
-| `sensor.crcgas_purchase_style` | 购气方式 |
-| `sensor.crcgas_integration_status` | 集成状态 |
+| 传感器 | 说明 |
+|--------|------|
+| 集成状态 | 当前状态（正常/密钥过期等） |
+| 用气地址 | 用气地址 |
+| 燃气公司 | 燃气公司名 |
+| 燃气类型 | 天然气/液化气 |
+| 购气方式 | 物联网表/IC卡 |
+| **燃气表总读数** ⭐ | 能源面板专用累计值 |
 
 ### 按钮
-| 按钮实体 | 说明 |
-|----------|------|
-| `button.crcgas_fetch_history` | 抓取所有历史记录 |
-| `button.crcgas_refresh_data` | 刷新数据 |
+| 按钮 | 说明 |
+|------|------|
+| 刷新数据 | 手动触发数据更新 |
+| 抓取历史记录 | 拉取所有历史账单 |
 
-## 配置选项
+## 功能特性
 
-### 数据更新间隔
+### ⚡ 数据刷新
+- **API 并行请求** — 4 个接口同时查询，刷新速度从 3-5 秒降至 1-2 秒
+- **阶梯气价动态读取** — 从 API 实时获取阶梯上限，不硬编码
+
+### 📊 能源面板
+- 所有传感器正确设置 `device_class`（gas/monetary）
+- `燃气表总读数` 累计传感器可接入 HA 能源面板作为燃气总表
+- 历史账单数据自动导入 HA 统计系统，支持趋势图表
+
+### 🔔 异常通知
+- Token 过期或网络异常时自动推送 HA 通知
+- 恢复后通知自动消除
+
+### 🔄 Token 刷新
+- 每小时主动刷新 Token，无需手动干预
+- 过期前 5 分钟紧急刷新，避免服务中断
+- 集成状态传感器实时显示当前 Token 状态
+
+### ⏱ 自定义刷新间隔
 | 单位 | 说明 | 示例 |
 |------|------|------|
 | 小时 | 每 N 小时更新 | 1, 2, 3, 6, 12, 24 |
@@ -112,11 +124,28 @@ cp -r crcgas ~/.homeassistant/custom_components/
 | 周 | 每周指定星期 | 每周一、三、五 |
 | 月 | 每月指定日期 | 每月 1, 15 号 |
 
-### Token 刷新
-- **独立定时器**：v1.2.6 起内置独立 Token 刷新定时器，每小时主动检查并刷新，不再依赖数据拉取周期
-- Token 约 4.5 小时过期（refresh-token），bo-token 约 3 小时
-- 刷新定时器仅在 Token 即将过期（5分钟内）时才执行刷新，避免无谓请求
-- 状态传感器 `sensor.crcgas_integration_status` 可查看当前状态
+## 仪表盘卡片
+
+### 燃气统计卡片
+v1.3.0 提供了一个专用 Lovelace 卡片，展示月度用气量和燃气费趋势。
+
+**添加：**
+1. 设置 → 仪表盘 → 资源 → 添加资源
+2. URL: `/local/crcgas-statistics-card.js`
+3. 类型: JavaScript 模块
+4. 编辑仪表盘 → + 添加卡片 → 搜索「华润燃气统计」
+
+### 统计图卡片
+```yaml
+type: statistics-graph
+stat_types:
+  - state
+  - change
+period: month
+statistic_ids:
+  - crcgas:monthly_gas_usage
+  - crcgas:monthly_bill_amount
+```
 
 ## Automation 示例
 
@@ -137,35 +166,12 @@ automation:
           message: "您有燃气欠费 ¥{{ states('sensor.crcgas_arrears') }}"
 ```
 
-## 仪表盘卡片
-
-### 统一账单卡片（推荐）
-
-推荐使用 [统一账单卡片](https://github.com/C3H3-AI/ha-utility-bill-card)，同时支持华润燃气和温州水务。
-
-1. **添加资源引用**
-   - 进入 设置 → 仪表盘 → 资源
-   - 点击"添加资源"
-   - URL: `/local/community/utility-bill-card/utility-bill-card.js`
-   - 类型: 选择 **JavaScript 模块**
-
-2. **添加卡片到仪表盘**
-   - 打开任意仪表盘，点击右上角"编辑"
-   - 点击"添加卡片"
-   - 选择"手动配置"（或在搜索中搜索）
-   - 粘贴以下配置：
-
-   ```yaml
-   type: custom:utility-bill-card
-   entity: sensor.crcgas_account_balance
-   title: 华润燃气
-   ```
-
 ## 故障排除
 
 ### Token 相关错误
 - 检查三个参数是否填写正确
-- Token 过期后需重新获取并重新配置集成
+- Token 过期后集成会自动推送通知提醒
+- 重新配置即可获取新 Token
 
 ### 数据不更新
 - 检查网络连接
@@ -173,6 +179,17 @@ automation:
 - 尝试重启 HA Core
 
 ## 更新日志
+
+### v1.3.0 (2026-06-22)
+- ✨ **API 并行请求** — 4 个接口同时查询，刷新 1-2 秒
+- ✨ **阶梯气价动态读取** — 从 API 实时获取，不硬编码
+- ✨ **device_class/state_class** — 传感器正确分类，支持能源面板
+- ✨ **燃气表总读数** — 累计传感器，可直接接入 HA 能源面板
+- ✨ **历史数据导入统计系统** — 月度用气量/费用趋势图
+- ✨ **集成异常通知** — Token 过期/网络异常自动推送通知
+- ✨ **集成状态中文显示** — 正常/密钥过期/网络异常等
+- ✨ **精度控制** — 金额固定显示 2 位小数
+- 🐛 **余额修复** — 获取失败返回不可用，不误报为 0
 
 ### v1.2.7
 - 🔧 修复 Token 刷新逻辑：每小时无条件刷新 + 剩余<5分钟紧急刷新

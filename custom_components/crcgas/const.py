@@ -139,6 +139,12 @@ SENSOR_TYPES = {
         "unit": "m³",
         "icon": "mdi:calendar-month",
     },
+    # === 能源面板专用 ===
+    "total_gas_consumption": {
+        "name": "燃气表总读数",
+        "unit": "m³",
+        "icon": "mdi:counter",
+    },
     # === 中等价值 ===
     "cons_addr": {
         "name": "用气地址",

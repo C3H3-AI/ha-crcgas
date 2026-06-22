@@ -1,8 +1,9 @@
-"""华润燃气 传感器平台 - v1.2.0
+"""华润燃气 传感器平台 - v1.3.0
 
-v1.2.0 新增：预估燃气账单传感器、native_value 统一返回 float、自动保存用气历史
+v1.3.0 新增：API并行请求、device_class/state_class、能源面板适配、阶梯动态读取、总消耗量累计传感器
 """
 
+import asyncio
 import json
 import logging
 from datetime import timedelta, datetime
@@ -13,12 +14,66 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from homeassistant.components.sensor.const import SensorStateClass as _SSC
+
 try:
-    from homeassistant.components.sensor import SensorEntity as BaseSensor
+    from homeassistant.components.sensor import SensorEntity as BaseSensor, SensorDeviceClass
 except ImportError:
-    from homeassistant.helpers.entity import Entity as BaseSensor
+    from homeassistant.components.sensor import SensorEntity as BaseSensor
+    SensorDeviceClass = None
+
+try:
+    from homeassistant.const import EntityCategory
+except ImportError:
+    EntityCategory = None
 
 from .api import HuarunGasApi, SessionTimeoutError
+_STATE_CLASS_MAP = {
+    "this_gas_used": _SSC.TOTAL_INCREASING,
+    "monthly_gas_used": _SSC.TOTAL_INCREASING, 
+    "step1_gas_used": _SSC.TOTAL_INCREASING,
+    "step2_gas_used": _SSC.TOTAL_INCREASING,
+    "bill_amount": _SSC.MEASUREMENT,
+    "estimated_gas_bill_amount": _SSC.MEASUREMENT,
+    "account_balance": _SSC.MEASUREMENT,
+    "arrears": _SSC.MEASUREMENT,
+    "last_pay_amount": _SSC.MEASUREMENT,
+    "annual_pay_count": _SSC.TOTAL_INCREASING,
+    "this_read": _SSC.TOTAL_INCREASING,
+    "last_month_gas": _SSC.MEASUREMENT,
+    "year_avg_gas": _SSC.MEASUREMENT,
+    "step1_remain": _SSC.MEASUREMENT,
+    "step2_remain": _SSC.MEASUREMENT,
+    "penalty_amount": _SSC.MEASUREMENT,
+    "gas_price_step1": _SSC.MEASUREMENT,
+    "gas_price_step2": _SSC.MEASUREMENT,
+    "total_gas_consumption": _SSC.TOTAL_INCREASING,
+}
+
+_DEVICE_CLASS_MAP = {
+    "this_gas_used": "gas",
+    "monthly_gas_used": "gas",
+    "total_gas_consumption": "gas",
+    "step1_gas_used": "gas",
+    "step2_gas_used": "gas",
+    "this_read": "gas",
+    "last_month_gas": "gas",
+    "year_avg_gas": "gas",
+    "step1_remain": "gas",
+    "step2_remain": "gas",
+    "bill_amount": "monetary",
+    "estimated_gas_bill_amount": "monetary",
+    "account_balance": "monetary",
+    "arrears": "monetary",
+    "last_pay_amount": "monetary",
+    "penalty_amount": "monetary",
+    "gas_price_step1": "monetary",
+    "gas_price_step2": "monetary",
+}
+
+
+
+
 from .const import (
     CONF_BO_TOKEN,
     CONF_CONS_NO,
@@ -28,6 +83,7 @@ from .const import (
     CONF_WX_CODE,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    INTEGRATION_STATUS,
     SENSOR_TYPES,
     TOKEN_EXPIRE_THRESHOLD,
 )
@@ -45,6 +101,11 @@ class HuarunGasSensor(BaseSensor):
         self._attr_name = SENSOR_TYPES[sensor_type]["name"]
         self._attr_icon = SENSOR_TYPES[sensor_type].get("icon")
         self._attr_native_unit_of_measurement = SENSOR_TYPES[sensor_type].get("unit")
+        self._attr_state_class = _STATE_CLASS_MAP.get(sensor_type)
+        self._attr_device_class = _DEVICE_CLASS_MAP.get(sensor_type)
+        # Monetary sensors: 2 decimal places
+        if _DEVICE_CLASS_MAP.get(sensor_type) == "monetary":
+            self._attr_suggested_display_precision = 2
 
     @property
     def device_info(self) -> Dict[str, Any]:
@@ -66,6 +127,13 @@ class HuarunGasSensor(BaseSensor):
         # 如果协调器已有数据，立即写入状态，避免实体永远 unknown
         if self.coordinator.data is not None:
             self.async_write_ha_state()
+
+    def _get_total_gas_consumption(self, data) -> float | None:
+        """返回燃气表总表读数（持续递增，用于能源面板）"""
+        this_read = data.get("this_read")
+        if this_read is not None:
+            return float(this_read)
+        return None
 
     @property
     def native_value(self):
@@ -137,10 +205,12 @@ class HuarunGasSensor(BaseSensor):
             return float(v) if v is not None else None
         elif self.sensor_type == "integration_status":
             v = data.get("integration_status")
-            return v if v else "unknown"
+            return INTEGRATION_STATUS.get(v, v) if v else "unknown"
         elif self.sensor_type == "monthly_gas_used":
             v = data.get("monthly_gas_used")
             return float(v) if v is not None else None
+        elif self.sensor_type == "total_gas_consumption":
+            return self._get_total_gas_consumption(data)
         elif self.sensor_type == "gas_price_step1":
             v = data.get("gas_price_step1")
             return float(v) if v is not None else None
@@ -218,7 +288,7 @@ async def async_setup_entry(
     else:
         # 非小时模式：设为最小1小时，day/week/month 定时逻辑在刷新回调中处理
         scan_interval = timedelta(hours=1)
-    _LOGGER.info(f"数据刷新间隔: {scan_interval_val} {scan_interval_unit}（实际: {scan_interval}）")
+    _LOGGER.info("数据刷新间隔: %s %s（实际: %s）", scan_interval_val, scan_interval_unit, scan_interval)
 
     # ========== 2. 数据更新协调器 ==========
     async def async_update_data():
@@ -248,6 +318,10 @@ async def async_setup_entry(
             "year_avg_gas": None,
             "integration_status": "unknown",
             "monthly_gas_used": None,
+        "step1_gas_limit": None,
+        "step2_gas_limit": None,
+        "gas_price_step1": None,
+        "gas_price_step2": None,
         }
         session_timeout_count = 0
         total_api_calls = 6
@@ -260,34 +334,74 @@ async def async_setup_entry(
             except Exception as e:
                 _LOGGER.error(f"强制刷新Token失败: {e}")
 
-        # 1. 获取欠费信息
-        try:
-            arrears_data = await api.async_query_arrears(cons_no)
-            if arrears_data:
-                data = arrears_data.get("dataResult", {})
-                if isinstance(data, dict):
-                    result["arrears"] = float(data.get("totalAmt", 0) or 0)
-                    result["account_balance"] = float(data.get("totalBal", 0) or 0)
-        except Exception as e:
-            _LOGGER.error(f"获取欠费信息失败: {e}")
-            if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
-                session_timeout_count += 1
+        # 并行获取独立数据（欠费/缴费历史/月度图表/绑定信息）
+        async def _fetch_arrears():
+            try:
+                d = await api.async_query_arrears(cons_no)
+                if d:
+                    dr = d.get("dataResult", {})
+                    if isinstance(dr, dict):
+                        result["arrears"] = float(dr.get("totalAmt", 0) or 0)
+                        result["account_balance"] = float(dr.get("totalBal", 0) or 0)
+            except Exception as e:
+                _LOGGER.error("获取欠费信息失败: %s", e)
+                if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
+                    nonlocal session_timeout_count
+                    session_timeout_count += 1
 
-        # 2. 获取缴费历史
-        try:
-            pay_data = await api.async_query_pay_history(cons_no)
-            if pay_data and pay_data.get("success"):
-                pay_result = pay_data.get("dataResult", [])
-                if isinstance(pay_result, list) and pay_result:
-                    last_pay = pay_result[0]
-                    result["last_pay_time"] = last_pay.get("payTime", "未知")
-                    result["last_pay_amount"] = float(last_pay.get("payAmount", 0) or 0)
-                    current_year = str(datetime.now().year)
-                    result["annual_pay_count"] = sum(1 for p in pay_result if current_year in str(p.get("payTime", "")))
-        except Exception as e:
-            _LOGGER.error(f"获取缴费历史失败: {e}")
-            if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
-                session_timeout_count += 1
+        async def _fetch_pay_history():
+            try:
+                d = await api.async_query_pay_history(cons_no)
+                if d and d.get("success"):
+                    pr = d.get("dataResult", [])
+                    if isinstance(pr, list) and pr:
+                        result["last_pay_time"] = pr[0].get("payTime", "未知")
+                        result["last_pay_amount"] = float(pr[0].get("payAmount", 0) or 0)
+                        result["annual_pay_count"] = sum(1 for p in pr if str(datetime.now().year) in str(p.get("payTime", "")))
+            except Exception as e:
+                _LOGGER.error("获取缴费历史失败: %s", e)
+                if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
+                    nonlocal session_timeout_count
+                    session_timeout_count += 1
+
+        async def _fetch_chart():
+            try:
+                d = await api.async_get_gas_bill_list4chart(cons_no)
+                if d and d.get("success"):
+                    dr = d.get("dataResult", {})
+                    if isinstance(dr, dict):
+                        lg = dr.get("lastGas", [])
+                        if len(lg) > 1:
+                            result["last_month_gas"] = lg[1]
+                        valid = [g for g in lg if g is not None]
+                        if valid:
+                            result["year_avg_gas"] = round(sum(valid) / len(valid), 1)
+            except Exception as e:
+                _LOGGER.error("获取月度用气图表失败: %s", e)
+                if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
+                    nonlocal session_timeout_count
+                    session_timeout_count += 1
+
+        async def _fetch_binding():
+            try:
+                d = await api.async_get_binding_cons()
+                if d and d.get("success"):
+                    cl = d.get("dataResult", [])
+                    if isinstance(cl, list) and cl:
+                        result["cons_addr"] = cl[0].get("consAddr", "未知")
+                        result["org_name"] = cl[0].get("orgName", "未知")
+                        result["gas_nature"] = cl[0].get("gasNature", "未知") or "天然气"
+                        result["purchase_style"] = cl[0].get("purchaseGasStyle", "未知")
+            except Exception as e:
+                _LOGGER.error("获取绑定信息失败: %s", e)
+                if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
+                    nonlocal session_timeout_count
+                    session_timeout_count += 1
+
+        await asyncio.gather(
+            _fetch_arrears(), _fetch_pay_history(), _fetch_chart(), _fetch_binding(),
+            return_exceptions=True,
+        )
 
         # 3. 获取账单列表（获取抄表日期和阶梯剩余气量）
         try:
@@ -320,23 +434,6 @@ async def async_setup_entry(
                     result["last_bill_penalty"] = float(last_bill.get("penaltyAmt", 0) or 0)
         except Exception as e:
             _LOGGER.error(f"获取账单列表失败: {e}")
-            if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
-                session_timeout_count += 1
-
-        # 4. 获取月度用气图表
-        try:
-            chart_data = await api.async_get_gas_bill_list4chart(cons_no)
-            if chart_data and chart_data.get("success"):
-                dr = chart_data.get("dataResult", {})
-                if isinstance(dr, dict):
-                    last_gas = dr.get("lastGas", [])
-                    if len(last_gas) > 1:
-                        result["last_month_gas"] = last_gas[1]
-                    all_gas = [g for g in last_gas if g is not None]
-                    if all_gas:
-                        result["year_avg_gas"] = round(sum(all_gas) / len(all_gas), 1)
-        except Exception as e:
-            _LOGGER.error(f"获取月度用气图表失败: {e}")
             if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
                 session_timeout_count += 1
 
@@ -380,22 +477,7 @@ async def async_setup_entry(
                 session_timeout_count += 1
             result["this_gas_used"] = result.get("last_bill_gas_amt", 0)
 
-        # 6. 获取绑定信息
-        try:
-            binding_data = await api.async_get_binding_cons()
-            if binding_data and binding_data.get("success"):
-                cons_list = binding_data.get("dataResult", [])
-                if isinstance(cons_list, list) and cons_list:
-                    cons_info = cons_list[0]
-                    result["cons_addr"] = cons_info.get("consAddr", "未知")
-                    result["org_name"] = cons_info.get("orgName", "未知")
-                    result["gas_nature"] = cons_info.get("gasNature", "未知") or "天然气"
-                    result["purchase_style"] = cons_info.get("purchaseGasStyle", "未知")
-        except Exception as e:
-            _LOGGER.error(f"获取绑定信息失败: {e}")
-            if "SESSION_TIMEOUT" in str(e) or "会话超时" in str(e):
-                session_timeout_count += 1
-
+        # ========== 状态判断 ==========
         if session_timeout_count >= total_api_calls:
             _LOGGER.critical(f"全部{total_api_calls}个API返回会话超时！Token已完全失效。")
             result["integration_status"] = "token_expired"
@@ -406,6 +488,27 @@ async def async_setup_entry(
             else:
                 result["integration_status"] = "normal"
 
+        # ========== 异常通知 ==========
+        status_str = hass.data.get(f"{DOMAIN}_last_status_{config_entry.entry_id}")
+        new_status = result["integration_status"]
+        if new_status != "normal" and new_status != status_str:
+            # 状态从正常变为异常 → 发通知
+            msg = INTEGRATION_STATUS.get(new_status, new_status)
+            hass.components.persistent_notification.async_create(
+                f"华润燃气集成状态异常: {msg}\n\n请检查 Token 是否过期或网络是否正常。",
+                title="华润燃气 - 集成异常",
+                notification_id=f"crcgas_error_{config_entry.entry_id}",
+            )
+        elif new_status == "normal" and status_str and status_str != "normal":
+            # 状态恢复 → 清除通知
+            try:
+                hass.components.persistent_notification.async_dismiss(
+                    notification_id=f"crcgas_error_{config_entry.entry_id}"
+                )
+            except:
+                pass
+        hass.data[f"{DOMAIN}_last_status_{config_entry.entry_id}"] = new_status
+
         # 设置月度累计用气量（暂时用本期用气量代替）
         result["monthly_gas_used"] = result.get("this_gas_used", 0)
 
@@ -413,8 +516,8 @@ async def async_setup_entry(
         step1_remain = result.get("step1_remain", 0)
         step2_remain = result.get("step2_remain", 0)
         this_gas_used = result.get("this_gas_used", 0)
-        step1_gas_limit = result.get("step1_gas_limit", 330)  # 默认值
-        step2_gas_limit = result.get("step2_gas_limit", 170)  # 默认值
+        step1_gas_limit = result.get("step1_gas_limit") or 330
+        step2_gas_limit = result.get("step2_gas_limit") or 170
 
         # 如果gasStepList为空或数据异常，重新计算本月阶梯用气量
         if result.get("step1_gas_used", 0) == 0 and result.get("step2_gas_used", 0) == 0:
