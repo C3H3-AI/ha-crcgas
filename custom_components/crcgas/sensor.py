@@ -759,6 +759,11 @@ async def async_setup_entry(
             result["this_read"] = self.data["total_gas_consumption"]
             _LOGGER.info("本月账单未出，总表读数保持上次值: %s m³", result["this_read"])
 
+        # 修复总费用（total_gas_cost）为 0 时保持上次值
+        if result.get("total_gas_cost") and result["total_gas_cost"] <= 0 and self.data and self.data.get("total_gas_cost", 0) > 0:
+            result["total_gas_cost"] = self.data["total_gas_cost"]
+            _LOGGER.info("本月账单未出，总费用保持上次值: ¥%s", result["total_gas_cost"])
+
         # 计算预估燃气账单（基于阶梯用气量和气价）
         step1_gas = result.get("step1_gas_used", 0)
         step2_gas = result.get("step2_gas_used", 0)
