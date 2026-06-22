@@ -47,12 +47,12 @@ SENSOR_TYPES = {
     # === 高价值 ===
     "arrears": {
         "name": "欠费金额",
-        "unit": "¥",
+        "unit": "CNY",
         "icon": "mdi:cash",
     },
     "account_balance": {
         "name": "燃气账户余额",
-        "unit": "¥",
+        "unit": "CNY",
         "icon": "mdi:wallet",
     },
     "last_pay_time": {
@@ -61,7 +61,7 @@ SENSOR_TYPES = {
     },
     "last_pay_amount": {
         "name": "最近缴费金额",
-        "unit": "¥",
+        "unit": "CNY",
         "icon": "mdi:cash-multiple",
     },
     "annual_pay_count": {
@@ -90,17 +90,17 @@ SENSOR_TYPES = {
     # 单价（元/立方米）
     "gas_price_step1": {
         "name": "一档气价",
-        "unit": "¥/m³",
+        "unit": "CNY/m³",
         "icon": "mdi:currency-cny",
     },
     "gas_price_step2": {
         "name": "二档气价",
-        "unit": "¥/m³",
+        "unit": "CNY/m³",
         "icon": "mdi:currency-cny",
     },
     "estimated_gas_bill_amount": {
         "name": "预估燃气账单",
-        "unit": "¥",
+        "unit": "CNY",
         "icon": "mdi:calculator",
     },
     "this_gas_used": {
@@ -110,7 +110,7 @@ SENSOR_TYPES = {
     },
     "bill_amount": {
         "name": "账单金额",
-        "unit": "¥",
+        "unit": "CNY",
         "icon": "mdi:receipt",
     },
     "step1_remain": {
@@ -125,7 +125,7 @@ SENSOR_TYPES = {
     },
     "penalty_amount": {
         "name": "违约金",
-        "unit": "¥",
+        "unit": "CNY",
         "icon": "mdi:alert-circle",
     },
     # === 新增：状态传感器 ===

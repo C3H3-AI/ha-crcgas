@@ -47,12 +47,12 @@ cp -r crcgas ~/.homeassistant/custom_components/
 ### 账单与余额
 | 传感器 | 说明 | 单位 | device_class |
 |--------|------|:----:|:-----------:|
-| 欠费金额 | 当前欠费 | ¥ | monetary |
-| 燃气账户余额 | 账户余额 | ¥ | monetary |
-| 最近缴费金额 | 上次缴费金额 | ¥ | monetary |
-| 违约金 | 逾期违约金 | ¥ | monetary |
-| 账单金额 | 本期账单金额 | ¥ | monetary |
-| 预估燃气账单 | 按阶梯价计算 | ¥ | monetary |
+| 欠费金额 | 当前欠费 | CNY | monetary |
+| 燃气账户余额 | 账户余额 | CNY | monetary |
+| 最近缴费金额 | 上次缴费金额 | CNY | monetary |
+| 违约金 | 逾期违约金 | CNY | monetary |
+| 账单金额 | 本期账单金额 | CNY | monetary |
+| 预估燃气账单 | 按阶梯价计算 | CNY | monetary |
 
 ### 用气量
 | 传感器 | 说明 | 单位 | device_class |
@@ -68,8 +68,8 @@ cp -r crcgas ~/.homeassistant/custom_components/
 ### 气价与档位
 | 传感器 | 说明 | 单位 |
 |--------|------|:----:|
-| 一档气价 | 第一阶梯单价 | ¥/m³ |
-| 二档气价 | 第二阶梯单价 | ¥/m³ |
+| 一档气价 | 第一阶梯单价 | CNY/m³ |
+| 二档气价 | 第二阶梯单价 | CNY/m³ |
 | 一档剩余气量 | 第一阶梯余量 | m³ |
 | 二档剩余气量 | 第二阶梯余量 | m³ |
 
