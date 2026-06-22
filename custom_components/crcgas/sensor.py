@@ -248,6 +248,69 @@ async def _calculate_step_usage(result, api, cons_no):
         _LOGGER.error(f"计算阶梯用气量失败: {e}")
 
 
+def _import_history_statistics(hass, entry, bill_history):
+    """将历史账单数据导入 HA 统计系统，形成趋势图"""
+    try:
+        from homeassistant.components.recorder import get_instance
+        from homeassistant.components.recorder.statistics import (
+            async_add_external_statistics,
+            StatisticMetaData,
+        )
+    except ImportError:
+        _LOGGER.warning("recorder 组件不可用，无法导入历史统计")
+        return
+
+    sorted_bills = sorted(bill_history, key=lambda b: b.get("billYm", ""))
+    if not sorted_bills:
+        return
+
+    from datetime import datetime, timezone, timedelta
+
+    # 燃气用量统计
+    gas_metadata = StatisticMetaData(
+        has_mean=False, has_sum=True,
+        name="历史月度用气量", source=DOMAIN,
+        statistic_id=f"{DOMAIN}:monthly_gas_usage",
+        unit_of_measurement="m³",
+    )
+    gas_stats = []
+    cumulative_gas = 0.0
+    for bill in sorted_bills:
+        ym = bill.get("billYm", "")
+        if not ym or len(ym) != 6: continue
+        year, month = int(ym[:4]), int(ym[4:6])
+        gas_amt = float(bill.get("gasAmt", 0) or 0)
+        cumulative_gas += gas_amt
+        start = datetime(year, month, 1, tzinfo=timezone.utc)
+        end = (datetime(year, month+1, 1, tzinfo=timezone.utc)
+               if month < 12 else datetime(year+1, 1, 1, tzinfo=timezone.utc))
+        gas_stats.append({"start": start, "end": end, "state": gas_amt, "sum": cumulative_gas})
+    async_add_external_statistics(hass, gas_metadata, gas_stats)
+    _LOGGER.info("已导入 %d 条历史用气量统计", len(gas_stats))
+
+    # 燃气费用统计
+    bill_metadata = StatisticMetaData(
+        has_mean=False, has_sum=True,
+        name="历史月度燃气费", source=DOMAIN,
+        statistic_id=f"{DOMAIN}:monthly_bill_amount",
+        unit_of_measurement="CNY",
+    )
+    bill_stats = []
+    cumulative_bill = 0.0
+    for bill in sorted_bills:
+        ym = bill.get("billYm", "")
+        if not ym or len(ym) != 6: continue
+        year, month = int(ym[:4]), int(ym[4:6])
+        bill_amt = float(bill.get("billAmt", 0) or 0)
+        cumulative_bill += bill_amt
+        start = datetime(year, month, 1, tzinfo=timezone.utc)
+        end = (datetime(year, month+1, 1, tzinfo=timezone.utc)
+               if month < 12 else datetime(year+1, 1, 1, tzinfo=timezone.utc))
+        bill_stats.append({"start": start, "end": end, "state": bill_amt, "sum": cumulative_bill})
+    async_add_external_statistics(hass, bill_metadata, bill_stats)
+    _LOGGER.info("已导入 %d 条历史燃气费统计", len(bill_stats))
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -591,16 +654,20 @@ async def async_setup_entry(
             bill_history = storage.get_bill_history()
             if bill_history:
                 _LOGGER.debug(f"已有 {len(bill_history)} 条历史账单，跳过自动抓取")
-                return
+            else:
+                _LOGGER.info("首次启动，自动抓取历史记录...")
+                result = await storage.async_fetch_all_bills(api, cons_no)
+                _LOGGER.info(
+                    f"首次自动抓取完成: "
+                    f"新增{result['new_bills']}条, "
+                    f"更新{result['updated_bills']}条, "
+                    f"总计{result['total_stored']}条"
+                )
+                bill_history = storage.get_bill_history()
 
-            _LOGGER.info("首次启动，自动抓取历史记录...")
-            result = await storage.async_fetch_all_bills(api, cons_no)
-            _LOGGER.info(
-                f"首次自动抓取完成: "
-                f"新增{result['new_bills']}条, "
-                f"更新{result['updated_bills']}条, "
-                f"总计{result['total_stored']}条"
-            )
+            # 导入历史统计数据到 HA 统计系统
+            if bill_history:
+                _import_history_statistics(hass, config_entry, bill_history)
         except Exception as e:
             _LOGGER.warning(f"首次自动抓取历史记录失败（按钮可补救）: {e}")
 
@@ -621,6 +688,10 @@ async def async_setup_entry(
                 f"更新{result['updated_bills']}条, "
                 f"总计{result['total_stored']}条"
             )
+            # 导入历史统计数据
+            bill_history = storage.get_bill_history()
+            if bill_history:
+                _import_history_statistics(hass, config_entry, bill_history)
             return {"success": True, "result": result}
         except Exception as e:
             _LOGGER.error(f"抓取历史记录失败: {e}")
