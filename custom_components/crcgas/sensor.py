@@ -781,13 +781,14 @@ async def async_setup_entry(
 
         # 修复总表读数（this_read / total_gas_consumption）为 0 时保持上次值
         # 能源面板用：当月用量 = 本月累计 - 上月累计，表读数为 0 会导致负数
-        if result.get("this_read", 0) == 0 and self.data and self.data.get("total_gas_consumption", 0) > 0:
-            result["this_read"] = self.data["total_gas_consumption"]
+        # 注意：async_update_data 是闭包，coordinator 在定义处的闭包作用域中
+        if result.get("this_read", 0) == 0 and coordinator.data and coordinator.data.get("total_gas_consumption", 0) > 0:
+            result["this_read"] = coordinator.data["total_gas_consumption"]
             _LOGGER.info("本月账单未出，总表读数保持上次值: %s m³", result["this_read"])
 
         # 修复总费用（total_gas_cost）为 0 时保持上次值
-        if result.get("total_gas_cost") and result["total_gas_cost"] <= 0 and self.data and self.data.get("total_gas_cost", 0) > 0:
-            result["total_gas_cost"] = self.data["total_gas_cost"]
+        if result.get("total_gas_cost") and result["total_gas_cost"] <= 0 and coordinator.data and coordinator.data.get("total_gas_cost", 0) > 0:
+            result["total_gas_cost"] = coordinator.data["total_gas_cost"]
             _LOGGER.info("本月账单未出，总费用保持上次值: ¥%s", result["total_gas_cost"])
 
         # 计算预估燃气账单（基于阶梯用气量和气价）
