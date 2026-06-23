@@ -19,6 +19,7 @@ from homeassistant.components.sensor.const import SensorStateClass as _SSC
 from homeassistant.components.sensor import SensorEntity as BaseSensor
 
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .api import HuarunGasApi, SessionTimeoutError
 _STATE_CLASS_MAP = {
@@ -51,6 +52,13 @@ _DEVICE_CLASS_MAP = {
     "step1_gas_used": "gas",
     "step2_gas_used": "gas",
     "this_read": "gas",
+    # 货币传感器
+    "arrears": "monetary",
+    "account_balance": "monetary",
+    "last_pay_amount": "monetary",
+    "bill_amount": "monetary",
+    "penalty_amount": "monetary",
+    "estimated_gas_bill_amount": "monetary",
 }
 
 
@@ -71,12 +79,13 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-class HuarunGasSensor(BaseSensor):
+class HuarunGasSensor(RestoreEntity, BaseSensor):
     """华润燃气传感器基类"""
 
     def __init__(self, coordinator: DataUpdateCoordinator, sensor_type: str):
         self.coordinator = coordinator
         self.sensor_type = sensor_type
+        self._restored_state = None
         self._attr_unique_id = f"{DOMAIN}_{sensor_type}"
         self._attr_name = SENSOR_TYPES[sensor_type]["name"]
         self._attr_icon = SENSOR_TYPES[sensor_type].get("icon")
@@ -100,11 +109,19 @@ class HuarunGasSensor(BaseSensor):
         return self.coordinator.last_update_success
 
     async def async_added_to_hass(self):
-        """添加到 Home Assistant"""
+        """添加到 Home Assistant - 恢复上次状态避免 unknown 间隙"""
+        await super().async_added_to_hass()
+        # 恢复重启前的状态值，防止 HA 统计引擎因 unknown→正常值过渡而创建 sum=0 记录
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.state not in (None, "unknown", "unavailable"):
+            try:
+                self._restored_state = float(last_state.state)
+            except (ValueError, TypeError):
+                pass
         self.async_on_remove(
             self.coordinator.async_add_listener(self.async_write_ha_state)
         )
-        # 如果协调器已有数据，立即写入状态，避免实体永远 unknown
+        # 如果协调器已有数据或已恢复状态，立即生效
         if self.coordinator.data is not None:
             self.async_write_ha_state()
 
@@ -120,7 +137,7 @@ class HuarunGasSensor(BaseSensor):
         """获取传感器值"""
         data = self.coordinator.data
         if not data:
-            return None
+            return self._restored_state
 
         if self.sensor_type == "arrears":
             v = data.get("arrears")
@@ -206,12 +223,13 @@ class HuarunGasSensor(BaseSensor):
         return None
 
 
-class HuarunGasMeterHistorySensor(BaseSensor):
+class HuarunGasMeterHistorySensor(RestoreEntity, BaseSensor):
     """燃气表历史累计传感器 — 用于能源面板显示完整历史数据"""
 
     def __init__(self, coordinator, entry_id):
         self._coordinator = coordinator
         self._entry_id = entry_id
+        self._restored_state = None
         self._attr_unique_id = f"{DOMAIN}_{entry_id}_gas_meter_history"
         self._attr_name = "燃气表历史累计"
         self._attr_icon = "mdi:counter"
@@ -237,13 +255,21 @@ class HuarunGasMeterHistorySensor(BaseSensor):
         if data:
             v = data.get("this_read")
             return float(v) if v is not None else None
-        return None
+        return self._restored_state
 
     async def async_added_to_hass(self):
+        """添加到 Home Assistant - 恢复上次状态避免 unknown 间隙"""
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.state not in (None, "unknown", "unavailable"):
+            try:
+                self._restored_state = float(last_state.state)
+            except (ValueError, TypeError):
+                pass
         self.async_on_remove(
             self._coordinator.async_add_listener(self.async_write_ha_state)
         )
-        if self._coordinator.data is not None:
+        if self._coordinator.data is not None or self._restored_state is not None:
             self.async_write_ha_state()
 
 

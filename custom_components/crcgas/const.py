@@ -87,15 +87,13 @@ SENSOR_TYPES = {
         "unit": "m³",
         "icon": "mdi:stairs-up",
     },
-    # 单价（元/立方米）
+    # 单价（元/立方米）— 不使用 unit_of_measurement，HA 不支持 CNY/m³ 复合单位
     "gas_price_step1": {
         "name": "一档气价",
-        "unit": "CNY/m³",
         "icon": "mdi:currency-cny",
     },
     "gas_price_step2": {
         "name": "二档气价",
-        "unit": "CNY/m³",
         "icon": "mdi:currency-cny",
     },
     "estimated_gas_bill_amount": {
