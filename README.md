@@ -1,6 +1,6 @@
 # 华润燃气 Home Assistant 集成
 
-![Version](https://img.shields.io/badge/version-v2.0.2-blue)
+![Version](https://img.shields.io/badge/version-v2.0.3-blue)
 ![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.1%2B-green)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 ![License](https://img.shields.io/github/license/C3H3-AI/ha-crcgas?color=orange)
@@ -196,6 +196,11 @@ automation:
 - 尝试重启 HA Core
 
 ## 更新日志
+
+### v2.0.3 (2026-06-24)
+- 🔧 **统计数据修复** — SQLite 注入改用 `source=recorder`，与 HA Recorder 共享同一套统计基线
+- 🔧 **旧数据清理** — 自动删除 `source=crcgas` 残留数据，避免双源冲突
+- 🔧 **启动跳过优化** — 已有历史数据时不再重复删除注入，保障重启速度
 
 ### v2.0.2 (2026-06-23)
 - ✨ **三档用气量 + 三档气价** — 支持第三阶梯数据（gasStepList + consPrcInfo 0203）
