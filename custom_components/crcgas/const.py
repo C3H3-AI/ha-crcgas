@@ -176,6 +176,36 @@ SENSOR_TYPES = {
 
     },
 
+    "step1_gas_limit": {
+
+        "name": "一档总限额",
+
+        "unit": "m³",
+
+        "icon": "mdi:counter",
+
+    },
+
+    "step1_gas_sum": {
+
+        "name": "一档累计用量",
+
+        "unit": "m³",
+
+        "icon": "mdi:chart-histogram",
+
+    },
+
+    "step2_gas_limit": {
+
+        "name": "二档总限额",
+
+        "unit": "m³",
+
+        "icon": "mdi:counter",
+
+    },
+
     # 单价（元/立方米）
 
     "gas_price_step1": {

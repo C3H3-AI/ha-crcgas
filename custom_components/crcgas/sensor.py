@@ -195,6 +195,18 @@ class HuarunGasSensor(BaseSensor):
             v = data.get("step2_remain")
             return float(v) if v is not None else 0.0
 
+        elif self.sensor_type == "step1_gas_limit":
+            v = data.get("step1_gas_limit")
+            return float(v) if v is not None else 330.0
+
+        elif self.sensor_type == "step1_gas_sum":
+            v = data.get("step1_gas_sum")
+            return float(v) if v is not None else 0.0
+
+        elif self.sensor_type == "step2_gas_limit":
+            v = data.get("step2_gas_limit")
+            return float(v) if v is not None else 170.0
+
         elif self.sensor_type == "penalty_amount":
             v = data.get("penalty_amount")
             return float(v) if v is not None else 0.0
@@ -857,6 +869,7 @@ async def async_setup_entry(
                     rule_code = prc_detail.get("ruleCode", "")
 
                     lev_gq_remain = prc_detail.get("levGqRemain", "")
+                    lev_gq_sum = prc_detail.get("levGqSum", "0")
 
                     if isinstance(lev_gq_remain, str):
                         lev_gq_remain = lev_gq_remain.replace(",", "")
@@ -932,6 +945,14 @@ async def async_setup_entry(
                     if all_gas:
 
                         result["year_avg_gas"] = round(sum(all_gas) / len(all_gas), 1)
+
+                    # 统计本年累计用气（thisGas 前几个非空值之和）
+                    this_gas = dr.get("thisGas", [])
+                    valid_this = [g for g in this_gas if g is not None and g > 0]
+                    if valid_this:
+                        result["step1_gas_sum"] = sum(valid_this)
+                    else:
+                        result["step1_gas_sum"] = 0
 
         except Exception as e:
 
