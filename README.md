@@ -1,6 +1,6 @@
 # 华润燃气 Home Assistant 集成
 
-![Version](https://img.shields.io/badge/version-v2.0.3-blue)
+![Version](https://img.shields.io/badge/version-v2.0.5-blue)
 ![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.1%2B-green)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 ![License](https://img.shields.io/github/license/C3H3-AI/ha-crcgas?color=orange)
@@ -219,6 +219,18 @@ automation:
 - 🔧 **能源面板修复** — 历史数据同时注入 `燃气表总读数` 和 `累计燃气费用`，解决费用曲线空白
 - 🔧 **集成状态中文显示** — 修复英文 key 问题（normal → 正常）
 - 📊 **传感器总数 28 → 34** — 新增 6 个传感器
+
+### v2.0.5 (2026-06-25)
+- 🎨 **crcgas-statistics-card 圆点优化** — 折线图数据点缩小为实心 (r3.5)，去白边更清爽
+
+### v2.0.4 (2026-06-25)
+- ✨ **crcgas-statistics-card v4.0 通用版重构**
+  - 自动检测 entity_prefix，无需手动配置
+  - 柱状图/折线图切换，Y轴整数标注
+  - 鼠标悬停浮动提示（双年数据）
+  - 一阶阶梯进度条（年度限额对比）
+  - 2026年同比数据展示
+- ✨ **新增传感器** — 一档总限额/二档总限额
 
 ### v2.0.1 (2026-06-23)
 - 🐛 **修复能源面板负数问题** — 账单未出时总表读数和总费用不再跌为 0，保持上次值不变
