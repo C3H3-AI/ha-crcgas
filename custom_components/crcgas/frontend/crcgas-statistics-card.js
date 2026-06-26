@@ -28,15 +28,24 @@ function _niceStep(maxV) {
   return Math.round(maxV / 20 / 100) * 100;
 }
 
+/** 从抄表时间字符串中提取月份标签 */
+function _periodMonthLabel(periodStr) {
+  if (!periodStr) return '最近一期';
+  // 尝试匹配 "2025-05-26"、"2025/05/26" 或 "2025-05"
+  const m = periodStr.match(/(?:-|\/|年)(\d{1,2})(?:月|-|\/|$)/);
+  if (m) return parseInt(m[1], 10) + '月';
+  return periodStr;
+}
+
 /** 生成 SVG 悬浮提示（在图表内部渲染） */
 function _makeTipSVG(month, d1, d2, y1, y2, price, PL, SX, H, W, pos) {
   const sd1 = d1[month];
   const sd2 = d2[month];
   if (!sd1 && !sd2) return '';
-  const g1 = sd1 ? sd1.change.toFixed(1) : '0.0';
-  const g2 = sd2 ? sd2.change.toFixed(1) : '0.0';
-  const c1 = sd1 ? '¥' + (sd1.change * price).toFixed(0) : '¥0';
-  const c2 = sd2 ? '¥' + (sd2.change * price).toFixed(0) : '¥0';
+  const g1 = sd1 ? Math.max(0, sd1.change).toFixed(1) : '0.0';
+  const g2 = sd2 ? Math.max(0, sd2.change).toFixed(1) : '0.0';
+  const c1 = sd1 ? '¥' + (Math.max(0, sd1.change) * price).toFixed(0) : '¥0';
+  const c2 = sd2 ? '¥' + (Math.max(0, sd2.change) * price).toFixed(0) : '¥0';
   const TW = 100, TH = 44;
   let tx = pos ? Math.max(2, Math.min(W - TW - 2, pos.x - TW / 2)) : 2;
   let ty = pos ? Math.max(2, Math.min(H - TH - 2, pos.y - TH - 8)) : 2;
@@ -443,14 +452,14 @@ ${dots}`;
 ${this._loading?'<div class="ldg">加载中...</div>':''}
 ${!this._loading?`
 <div class="ha" style="justify-content:center;margin-bottom:6px;gap:8px"><button class="nb" data-action="cy" data-dir="-1">&lsaquo;</button><span class="yt">${this._year}</span><button class="nb" data-action="cy" data-dir="1">&rsaquo;</button></div>
-<div class="cl"><span class="li"><span class="ld" style="background:#ff7043"></span> ${y1}年</span><span class="li"><span class="ld" style="background:#7c4dff"></span> ${y2}年同期</span></div>
+<div class="cl"><span class="li"><span class="ld" style="background:#ff7043"></span> 本年</span><span class="li"><span class="ld" style="background:#7c4dff"></span> 去年同期</span></div>
 <div class="ca">${this._renderChart(y1,y2,mode,this._chartType,this._hoverMonth?this._hoverMonth.month:null,this._hoverPos)}</div>
 <div class="sr">
-<div class="sc"><div class="sv">${y1Val}</div><div class="sl">${y1}年${unitLabel}</div><div class="sd" style="color:${diffColor}">${diffSym} ${Math.abs(diff).toFixed(mode==='gas'?1:0)}${unit}</div></div>
-<div class="sc"><div class="sv">${y2Val}</div><div class="sl">${y2}年同期${unitLabel}</div></div>
+<div class="sc"><div class="sv">${y1Val}</div><div class="sl">本年${unitLabel}</div><div class="sd" style="color:${diffColor}">${diffSym} ${Math.abs(diff).toFixed(mode==='gas'?1:0)}${unit}</div></div>
+<div class="sc"><div class="sv">${y2Val}</div><div class="sl">去年同期${unitLabel}</div></div>
 <div class="sc"><div class="sv${ld.balance!==null&&ld.balance<10?' w':''}">${ld.balance!==null?'¥'+ld.balance.toFixed(2):'--'}</div><div class="sl">余额</div></div>
-<div class="sc"><div class="sv">${ld.latestUsage!==null?ld.latestUsage.toFixed(1)+'m³':'--'}</div><div class="sl">${ld.latestPeriod||'最近一期'}用气</div></div>
-<div class="sc"><div class="sv">${ld.latestBill!==null?'¥'+ld.latestBill.toFixed(0):'--'}</div><div class="sl">${ld.latestPeriod||'最近一期'}费用</div></div>
+<div class="sc"><div class="sv">${ld.latestUsage!==null?ld.latestUsage.toFixed(1)+'m³':'--'}</div><div class="sl">${_periodMonthLabel(ld.latestPeriod)}用气</div></div>
+<div class="sc"><div class="sv">${ld.latestBill!==null?'¥'+ld.latestBill.toFixed(0):'--'}</div><div class="sl">${_periodMonthLabel(ld.latestPeriod)}费用</div></div>
 </div>
 ${ld.step1Remain!==null?(() => {
   const bars = [];
