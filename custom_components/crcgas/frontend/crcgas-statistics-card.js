@@ -28,15 +28,6 @@ function _niceStep(maxV) {
   return Math.round(maxV / 20 / 100) * 100;
 }
 
-/** 从抄表时间字符串中提取月份标签 */
-function _periodMonthLabel(periodStr) {
-  if (!periodStr) return '最近一期';
-  // 尝试匹配 "2025-05-26"、"2025/05/26" 或 "2025-05"
-  const m = periodStr.match(/(?:-|\/|年)(\d{1,2})(?:月|-|\/|$)/);
-  if (m) return parseInt(m[1], 10) + '月';
-  return periodStr;
-}
-
 /** 生成 SVG 悬浮提示（在图表内部渲染） */
 function _makeTipSVG(month, d1, d2, y1, y2, price, PL, SX, H, W, pos) {
   const sd1 = d1[month];
@@ -441,6 +432,9 @@ ${dots}`;
     const diff = mode === 'gas' ? y1Total - y2Total : y1Cost - y2Cost;
     const diffColor = diff > 0 ? '#f44336' : diff < 0 ? '#4caf50' : 'var(--secondary-text-color)';
     const diffSym = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
+    // 从统计数据中找最近有数据的月份（确保和图表的月份一致）
+    const _latestDataMonth = Object.keys(d1).filter(m => Number(m) <= maxMonth && (d1[m]?.change || 0) > 0).map(Number).sort((a,b)=>b-a)[0];
+    const periodLabel = _latestDataMonth !== undefined ? (_latestDataMonth+1)+'月' : (ld.latestPeriod||'最近一期');
 
     this.innerHTML = `
 <style>#${this._cardId}{font-family:var(--paper-font-body1_-_font-family)}#${this._cardId} ha-card{border-radius:12px;overflow:hidden}#${this._cardId} .b{padding:14px}#${this._cardId} .h{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}#${this._cardId} .ht{font-size:16px;font-weight:600;color:var(--primary-text-color)}#${this._cardId} .ha{display:flex;align-items:center;gap:6px}#${this._cardId} .nb{background:var(--secondary-background-color);border:1px solid var(--divider-color);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:14px;color:var(--primary-text-color);line-height:1.4}#${this._cardId} .nb:hover{background:var(--primary-color);color:#fff}#${this._cardId} .nb.a{background:var(--primary-color);color:#fff;border-color:var(--primary-color)}#${this._cardId} .yt{font-size:14px;font-weight:500;min-width:44px;text-align:center;color:var(--primary-text-color)}#${this._cardId} .cl{display:flex;justify-content:center;gap:20px;font-size:11px;margin-bottom:4px}#${this._cardId} .li{display:flex;align-items:center;gap:4px}#${this._cardId} .ld{width:8px;height:8px;border-radius:50%}#${this._cardId} .ca{position:relative}#${this._cardId} .sr{display:flex;gap:6px;margin-bottom:10px}#${this._cardId} .sc{flex:1;background:var(--secondary-background-color);border-radius:8px;padding:8px 6px;text-align:center;min-width:0}#${this._cardId} .sv{font-size:15px;font-weight:700;color:var(--primary-text-color)}#${this._cardId} .sv.w{color:#f44336}#${this._cardId} .sl{font-size:10px;color:var(--secondary-text-color);margin-top:1px}#${this._cardId} .sd{font-size:10px;margin-top:1px}#${this._cardId} .ts{margin-bottom:10px}#${this._cardId} .st{margin-bottom:8px}#${this._cardId} .st:last-child{margin-bottom:0}#${this._cardId} .sh{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px}#${this._cardId} .sl{color:var(--primary-text-color);font-weight:500}#${this._cardId} .sr{color:var(--secondary-text-color)}#${this._cardId} .sp{height:10px;border-radius:5px;background:var(--divider-color);overflow:hidden}#${this._cardId} .sf{height:100%;border-radius:5px;background:linear-gradient(90deg,#66bb6a,#43a047);transition:width .2s}#${this._cardId} .sf.s2{background:linear-gradient(90deg,#ffa726,#f57c00)}#${this._cardId} .f{margin-top:10px}#${this._cardId} .fr{display:flex;justify-content:space-between;padding:3px 0;font-size:13px;border-top:1px solid var(--divider-color);color:var(--primary-text-color)}#${this._cardId} .fv{font-weight:600}#${this._cardId} .ldg{text-align:center;padding:30px 0;color:var(--secondary-text-color);font-size:14px}</style>
@@ -458,8 +452,8 @@ ${!this._loading?`
 <div class="sc"><div class="sv">${y1Val}</div><div class="sl">本年${unitLabel}</div><div class="sd" style="color:${diffColor}">${diffSym} ${Math.abs(diff).toFixed(mode==='gas'?1:0)}${unit}</div></div>
 <div class="sc"><div class="sv">${y2Val}</div><div class="sl">去年同期${unitLabel}</div></div>
 <div class="sc"><div class="sv${ld.balance!==null&&ld.balance<10?' w':''}">${ld.balance!==null?'¥'+ld.balance.toFixed(2):'--'}</div><div class="sl">余额</div></div>
-<div class="sc"><div class="sv">${ld.latestUsage!==null?ld.latestUsage.toFixed(1)+'m³':'--'}</div><div class="sl">${_periodMonthLabel(ld.latestPeriod)}用气</div></div>
-<div class="sc"><div class="sv">${ld.latestBill!==null?'¥'+ld.latestBill.toFixed(0):'--'}</div><div class="sl">${_periodMonthLabel(ld.latestPeriod)}费用</div></div>
+<div class="sc"><div class="sv">${ld.latestUsage!==null?ld.latestUsage.toFixed(1)+'m³':'--'}</div><div class="sl">${periodLabel}用气</div></div>
+<div class="sc"><div class="sv">${ld.latestBill!==null?'¥'+ld.latestBill.toFixed(0):'--'}</div><div class="sl">${periodLabel}费用</div></div>
 </div>
 ${ld.step1Remain!==null?(() => {
   const bars = [];
