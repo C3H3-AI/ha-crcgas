@@ -1,244 +1,272 @@
 """华润燃气 HA集成常量定义 - 更新版"""
 
-
-
 from homeassistant.const import Platform
 
-
-
 # 平台
-
 DOMAIN = "crcgas"
-
 PLATFORM_NAME = "华润燃气"  # 集成显示名称
-
 PLATFORMS = [Platform.SENSOR, Platform.BUTTON]
 
-
-
 # API配置
-
 BASE_URL = "https://wmp-svc.crcgas.com/wmp-wechat-rest"
 
-
-
 # API端点
-
 API_GET_LOGIN_INFO = "/public/mp/getMpLoginInfo"
-
 API_GET_BINDING_CONS = "/binding/getMpBindingCons"
-
 API_GET_GAS_BILL_LIST = "/bill/getGasBillList"
-
 API_GET_BILL_DETAIL = "/bill/getBillDetail"
-
 API_QUERY_ARREARS = "/mp/pay/queryArrears"
-
 API_GET_BO_TOKEN = "/public/mp/getBoToken4Mp"
-
 API_DO_REFRESH_TOKEN = "/public/doRefreshToken"
-
 API_QUERY_PAY_HISTORY = "/mp/pay/queryPayHistory"
-
 API_GET_GAS_BILL_LIST_4_CHART = "/bill/getGasBillList4Chart"
 
-
-
 # 配置键
-
 CONF_REFRESH_TOKEN = "refresh_token"
-
 CONF_BO_TOKEN = "bo_token"
-
 CONF_WX_CODE = "wx_code"
-
 CONF_SERVICE_PASSWORD = "service_password"
-
 CONF_AREA = "area"
-
 CONF_CONS_NO = "cons_no"
-
 CONF_CONS_NAME = "cons_name"
-
 CONF_CONS_ADDR = "cons_addr"
-
 CONF_MOBILE = "mobile"
 
-
-
 # 自定义配置
-
 CONF_SCAN_INTERVAL = "scan_interval"
-
 CONF_SCAN_INTERVAL_UNIT = "scan_interval_unit"
-
 SCAN_INTERVAL_UNITS = {
-
     "hour": "小时（每N小时）",
-
     "day": "天（每天X点）",
-
     "week": "周（每周X，1=周一）",
-
     "month": "月（每月X号）",
-
 }
 
-
-
 # 传感器类型 - 更新版
-
 SENSOR_TYPES = {
-
     # === 高价值 ===
-
     "arrears": {
-
         "name": "欠费金额",
-
         "unit": "¥",
-
         "icon": "mdi:cash",
-
+        "device_class": "monetary",
+        "state_class": "total_increasing",
     },
-
     "account_balance": {
-
         "name": "燃气账户余额",
-
         "unit": "¥",
-
         "icon": "mdi:wallet",
-
+        "device_class": "monetary",
+        "state_class": "total_increasing",
     },
-
     "last_pay_time": {
-
         "name": "最近缴费时间",
-
         "icon": "mdi:clock-outline",
-
     },
-
     "last_pay_amount": {
-
         "name": "最近缴费金额",
-
         "unit": "¥",
-
         "icon": "mdi:cash-multiple",
-
+        "device_class": "monetary",
+        "state_class": "total_increasing",
     },
-
     "annual_pay_count": {
-
         "name": "年度缴费次数",
-
         "icon": "mdi:counter",
-
     },
-
     "this_read": {
-
         "name": "本期表读数",
-
         "unit": "m³",
-
         "icon": "mdi:gauge",
-
+        "device_class": "gas",
+        "state_class": "total_increasing",
     },
-
     "this_read_time": {
-
         "name": "本期抄表时间",
-
         "icon": "mdi:calendar-check",
-
     },
-
     "step1_gas_used": {
-
-        "name": "一档用气量",
-
+        "name": "本期一阶梯用气量",
         "unit": "m³",
-
         "icon": "mdi:stairs-up",
-
+        "device_class": "gas",
+        "state_class": "total_increasing",
     },
-
     "step2_gas_used": {
-
-        "name": "二档用气量",
-
+        "name": "本期二阶梯用气量",
         "unit": "m³",
-
         "icon": "mdi:stairs-up",
-
+        "device_class": "gas",
+        "state_class": "total_increasing",
     },
-
-    "step1_gas_limit": {
-
-        "name": "一档总限额",
-
-        "unit": "m³",
-
-        "icon": "mdi:counter",
-
-    },
-
-    "step1_gas_sum": {
-
-        "name": "一档累计用量",
-
-        "unit": "m³",
-
-        "icon": "mdi:chart-histogram",
-
-    },
-
-    "step2_gas_limit": {
-
-        "name": "二档总限额",
-
-        "unit": "m³",
-
-        "icon": "mdi:counter",
-
-    },
-
     # 单价（元/立方米）
-
     "gas_price_step1": {
-
-        "name": "一档气价",
-
+        "name": "一阶梯气价",
         "unit": "¥/m³",
-
         "icon": "mdi:currency-cny",
-
+        "device_class": "monetary",
     },
-
     "gas_price_step2": {
-        "name": "二档气价",
+        "name": "二阶梯气价",
         "unit": "¥/m³",
         "icon": "mdi:currency-cny",
+        "device_class": "monetary",
     },
-    # 三档用气量和气价
+    "estimated_gas_bill_amount": {
+        "name": "预估燃气账单",
+        "unit": "¥",
+        "icon": "mdi:calculator",
+        "device_class": "monetary",
+        "state_class": "total_increasing",
+    },
+    "this_gas_used": {
+        "name": "本期用气量",
+        "unit": "m³",
+        "icon": "mdi:fire",
+        "device_class": "gas",
+        "state_class": "total_increasing",
+    },
+    "bill_amount": {
+        "name": "账单金额",
+        "unit": "¥",
+        "icon": "mdi:receipt",
+        "device_class": "monetary",
+        "state_class": "total_increasing",
+    },
+    "step1_remain": {
+        "name": "一阶梯剩余气量",
+        "unit": "m³",
+        "icon": "mdi:tank",
+    },
+    "step2_remain": {
+        "name": "二阶梯剩余气量",
+        "unit": "m³",
+        "icon": "mdi:tank",
+    },
+    "step1_gas_sum": {
+        "name": "一阶梯累计已用",
+        "unit": "m³",
+        "icon": "mdi:sigma",
+        "device_class": "gas",
+        "state_class": "total_increasing",
+    },
+    "step2_gas_sum": {
+        "name": "二阶梯累计已用",
+        "unit": "m³",
+        "icon": "mdi:sigma",
+        "device_class": "gas",
+        "state_class": "total_increasing",
+    },
     "step3_gas_used": {
-        "name": "三档用气量",
+        "name": "本期三阶梯用气量",
         "unit": "m³",
         "icon": "mdi:stairs-up",
+        "device_class": "gas",
+        "state_class": "total_increasing",
+    },
+    "step3_remain": {
+        "name": "三阶梯剩余气量",
+        "unit": "m³",
+        "icon": "mdi:tank",
+    },
+    "step3_gas_sum": {
+        "name": "三阶梯累计已用",
+        "unit": "m³",
+        "icon": "mdi:sigma",
+        "device_class": "gas",
+        "state_class": "total_increasing",
     },
     "gas_price_step3": {
-        "name": "三档气价",
+        "name": "三阶梯气价",
         "unit": "¥/m³",
         "icon": "mdi:currency-cny",
+        "device_class": "monetary",
     },
-    # 上期账单
+    "penalty_amount": {
+        "name": "违约金",
+        "unit": "¥",
+        "icon": "mdi:alert-circle",
+        "device_class": "monetary",
+        "state_class": "total_increasing",
+    },
+    # === 新增：犯态传感器 ===
+    "integration_status": {
+        "name": "集成状态",
+        "icon": "mdi:checkbox-marked-circle",
+    },
+    # === 能源仪表盘专用传感器 ===
+    "gas_energy_dashboard": {
+        "name": "能源仪表盘燃气",
+        "unit": "m³",
+        "icon": "mdi:fire",
+        "device_class": "gas",
+        "state_class": "total_increasing",
+    },
+    # === 新增：月缯讹传感器 ===
+    "monthly_gas_used": {
+        "name": "图表月用气量",
+        "unit": "m³",
+        "icon": "mdi:chart-line",
+        "device_class": "gas",
+        "state_class": "total_increasing",
+    },
+    # === 中等价值 ===
+    "cons_addr": {
+        "name": "用气地址",
+        "icon": "mdi:home-map-marker",
+    },
+    "org_name": {
+        "name": "燃气公司",
+        "icon": "mdi:domain",
+    },
+    "gas_nature": {
+        "name": "燃气类型",
+        "icon": "mdi:gas-cylinder",
+    },
+    "purchase_style": {
+        "name": "购气方式",
+        "icon": "mdi:cart",
+    },
+    "last_month_gas": {
+        "name": "上期用气量",
+        "unit": "m³",
+        "icon": "mdi:chart-bar",
+        "device_class": "gas",
+        "state_class": "total_increasing",
+    },
+    "year_avg_gas": {
+        "name": "年度月均用气量",
+        "unit": "m³",
+        "icon": "mdi:chart-line-variant",
+        "device_class": "gas",
+        "state_class": "total_increasing",
+    },
+    "cons_name": {
+        "name": "户名",
+        "icon": "mdi:account",
+    },
+    "mobile": {
+        "name": "手机号",
+        "icon": "mdi:cellphone",
+    },
+    "meter_no": {
+        "name": "表号",
+        "icon": "mdi:barcode",
+    },
+    "area_name": {
+        "name": "区域",
+        "icon": "mdi:map-marker-radius",
+    },
+    "account_status": {
+        "name": "账户状态",
+        "icon": "mdi:account-check",
+    },
     "last_read": {
         "name": "上期表读数",
         "unit": "m³",
         "icon": "mdi:gauge",
+        "device_class": "gas",
+        "state_class": "total_increasing",
     },
     "last_read_time": {
         "name": "上期抄表时间",
@@ -248,199 +276,72 @@ SENSOR_TYPES = {
         "name": "结算状态",
         "icon": "mdi:check-circle",
     },
-    # === 能源面板专用（保持与旧版本向量一致，使已配置的能源面板自动恢复） ===
+    "revbl_amount": {
+        "name": "应收金额",
+        "unit": "¥",
+        "icon": "mdi:cash-clock",
+        "device_class": "monetary",
+        "state_class": "total_increasing",
+    },
+    "penalty_date": {
+        "name": "违约金起算日期",
+        "icon": "mdi:calendar-alert",
+    },
+    "last_fetch_time": {
+        "name": "数据撤取时间",
+        "icon": "mdi:clock-digital",
+    },
+    "bill_month": {
+        "name": "账单月份",
+        "icon": "mdi:calendar-month",
+    },
+
+    # === 累计/限额传感器 ===
     "total_gas_consumption": {
         "name": "燃气表总读数",
         "unit": "m³",
         "icon": "mdi:counter",
+        "device_class": "gas",
+        "state_class": "total_increasing",
     },
-    # 累计燃气费用（能源面板费用统计用）
     "total_gas_cost": {
         "name": "累计燃气费用",
         "unit": "¥",
         "icon": "mdi:cash-multiple",
+        "device_class": "monetary",
+        "state_class": "total",
     },
-    # 阶梯金额（从阶梯气量和气价计算）
-
-    "estimated_gas_bill_amount": {
-
-        "name": "预估燃气账单",
-
-        "unit": "¥",
-
-        "icon": "mdi:calculator",
-
-    },
-
-    "this_gas_used": {
-
-        "name": "本期用气量",
-
+    "step1_gas_limit": {
+        "name": "一档总限额",
         "unit": "m³",
-
-        "icon": "mdi:fire",
-
+        "icon": "mdi:numeric-1-circle-outline",
     },
-
-    "bill_amount": {
-
-        "name": "账单金额",
-
-        "unit": "¥",
-
-        "icon": "mdi:receipt",
-
-    },
-
-    "step1_remain": {
-
-        "name": "一档剩余气量",
-
+    "step2_gas_limit": {
+        "name": "二档总限额",
         "unit": "m³",
-
-        "icon": "mdi:tank",
-
-    },
-
-    "step2_remain": {
-
-        "name": "二档剩余气量",
-
-        "unit": "m³",
-
-        "icon": "mdi:tank",
-
-    },
-
-    "penalty_amount": {
-
-        "name": "违约金",
-
-        "unit": "¥",
-
-        "icon": "mdi:alert-circle",
-
-    },
-
-    # === 新增：状态传感器 ===
-
-    "integration_status": {
-
-        "name": "集成状态",
-
-        "icon": "mdi:checkbox-marked-circle",
-
-    },
-
-    # === 新增：月累计传感器 ===
-
-    "monthly_gas_used": {
-
-        "name": "本月累计用气量",
-
-        "unit": "m³",
-
-        "icon": "mdi:calendar-month",
-
-    },
-
-    # === 中等价值 ===
-
-    "cons_addr": {
-
-        "name": "用气地址",
-
-        "icon": "mdi:home-map-marker",
-
-    },
-
-    "org_name": {
-
-        "name": "燃气公司",
-
-        "icon": "mdi:domain",
-
-    },
-
-    "gas_nature": {
-
-        "name": "燃气类型",
-
-        "icon": "mdi:gas-cylinder",
-
-    },
-
-    "purchase_style": {
-
-        "name": "购气方式",
-
-        "icon": "mdi:cart",
-
-    },
-
-    "last_month_gas": {
-
-        "name": "上月用气量",
-
-        "unit": "m³",
-
-        "icon": "mdi:chart-bar",
-
-    },
-
-    "year_avg_gas": {
-
-        "name": "年度月均用气量",
-
-        "unit": "m³",
-
-        "icon": "mdi:chart-line-variant",
-
+        "icon": "mdi:numeric-2-circle-outline",
     },
 
 }
-
-
 
 # 集成状态定义
-
 INTEGRATION_STATUS = {
-
     "normal": "正常",
-
-    "token_expired": "密钥过期",
-
+    "token_expired": "密锅过期",
     "network_error": "网络异常",
-
     "config_error": "配置错误",
-
     "api_error": "API错误",
-
 }
 
-
-
-# Token有效期
-
+# Token有适期
 from datetime import timedelta
 
-
-
 TOKEN_REFRESH_INTERVAL = timedelta(hours=1)
-
 TOKEN_EXPIRE_THRESHOLD = timedelta(minutes=5)
-
 DEFAULT_SCAN_INTERVAL = timedelta(hours=1)
 
-
-
 # 历史数据存储配置
-
 HISTORY_STORAGE_VERSION = 1
-
 HISTORY_RETENTION_MONTHS = 24
-
-
-
 
 
