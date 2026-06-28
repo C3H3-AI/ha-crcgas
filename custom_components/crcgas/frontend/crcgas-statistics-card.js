@@ -138,7 +138,7 @@ class CrcgasStatisticsCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._loaded) this._loadData();
-    else this._loadCurrentState();
+    else this._debouncedLoad();
   }
 
   connectedCallback() {
@@ -220,6 +220,15 @@ class CrcgasStatisticsCard extends HTMLElement {
     }
   }
 
+  /** 防抖：批量状态变更仅触发一次渲染 */
+  _debouncedLoad() {
+    if (this._loadTimer) cancelAnimationFrame(this._loadTimer);
+    this._loadTimer = requestAnimationFrame(() => {
+      this._loadTimer = null;
+      this._loadCurrentState();
+    });
+  }
+
   /** 自动检测 entity_prefix */
   _ensurePrefix() {
     if (this._entityPrefix) return;
@@ -245,7 +254,6 @@ class CrcgasStatisticsCard extends HTMLElement {
     this._ensurePrefix();
     this._loaded = true;
     this._loading = true;
-    this._render();
     this._loadCurrentState();
     try {
       if (!this._yearData[this._year]) await this._loadYear(this._year);
@@ -387,11 +395,11 @@ class CrcgasStatisticsCard extends HTMLElement {
       for (let i = 0; i < months; i++) {
         const x = PL + i * SX, y = Math.max(PT, Math.min(H - PB, py(vals[i])));
         pts += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
-        if (vals[i] > 0) dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="${color}" opacity="0.9" cursor="pointer" data-action="month" data-year="${year}" data-month="${i}"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="14" fill="transparent" cursor="pointer" data-action="month" data-year="${year}" data-month="${i}"/>`;
+        if (vals[i] > 0) dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="${color}" opacity="0.9" cursor="pointer" data-action="month" data-year="${year}" data-month="${i}"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="14" fill="transparent" cursor="pointer" data-action="month" data-year="${year}" data-month="${i}"/>`;
       }
       const lastX = PL + (months - 1) * SX;
       area = pts + ` L${lastX.toFixed(1)},${(H-PB).toFixed(1)} L${PL.toFixed(1)},${(H-PB).toFixed(1)} Z`;
-      return `<path d="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      return `<path d="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
 <path d="${area}" fill="${color}" opacity="0.08"/>
 ${dots}`;
     };

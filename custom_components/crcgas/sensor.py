@@ -1435,6 +1435,48 @@ async def async_setup_entry(
 
     # 异步执行首次刷新 + 自动抓取历史记录
 
+    def _fix_statis_sum():
+        """修正短期统计冷启动 sum=0 问题"""
+        sensor_ids = [
+            "sensor.hua_run_ran_qi_ran_qi_zong_xiao_hao_liang",
+            "sensor.hua_run_ran_qi_lei_ji_ran_qi_fei_yong",
+        ]
+        db_path = hass.config.path("home-assistant_v2.db")
+        try:
+            with sqlite3.connect(db_path) as conn:
+                c = conn.cursor()
+                updated = 0
+                for sid in sensor_ids:
+                    meta = c.execute(
+                        "SELECT id FROM statistics_meta WHERE statistic_id = ?", (sid,)
+                    ).fetchone()
+                    if not meta:
+                        continue
+                    latest = c.execute(
+                        "SELECT sum, state FROM statistics_short_term "
+                        "WHERE metadata_id = ? ORDER BY start_ts DESC LIMIT 1",
+                        (meta[0],),
+                    ).fetchone()
+                    if not latest:
+                        continue
+                    short_sum, state_val = float(latest[0]), float(latest[1])
+                    if state_val > 0 and abs(short_sum - state_val) > 0.01:
+                        c.execute(
+                            "UPDATE statistics_short_term SET sum = state WHERE metadata_id = ?",
+                            (meta[0],),
+                        )
+                        rows = c.rowcount
+                        updated += rows
+                        _LOGGER.info(
+                            "修正短期统计 sum: %s %.1f→%.1f (%d条)",
+                            sid, short_sum, state_val, rows,
+                        )
+                if updated:
+                    conn.commit()
+                    _LOGGER.info("短期统计 sum 修正完成: 共 %d 条", updated)
+        except Exception as e:
+            _LOGGER.warning("短期统计 sum 修正失败: %s", e)
+
     async def async_initial_setup():
 
         """首次初始化：先刷新传感器数据，再自动抓取历史记录"""
@@ -1450,6 +1492,12 @@ async def async_setup_entry(
             _LOGGER.error(f"首次传感器数据刷新失败: {e}")
 
             return
+
+        # 修正短期统计 sum 冷启动问题
+        try:
+            await hass.async_add_executor_job(_fix_statis_sum)
+        except Exception as e:
+            _LOGGER.warning("短期统计 sum 修正异常: %s", e)
 
 
 
