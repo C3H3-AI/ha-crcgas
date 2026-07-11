@@ -326,3 +326,12 @@ automation:
 - ✨ 预估燃气账单传感器
 - ✨ native_value 统一返回 float
 - ✨ 自动保存用气历史
+
+## 💝 赞助
+
+如果这个集成帮到了你，欢迎请我喝杯咖啡 ☕
+
+| 微信支付 | 支付宝 |
+|:--------:|:------:|
+| ![微信](sponsor/wechat.jpg) | ![支付宝](sponsor/alipay.jpg) |
+
