@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract changelog
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}" -replace '^v', ''
+          $file = "CHANGELOG.md"
+          if (!(Test-Path $file)) {
+            "no changelog" | Set-Content release_body.txt
+            exit 0
+          }
+          $in = $false; $body = @()
+          foreach ($line in Get-Content $file) {
+            if ($line -match "^## \[$tag\]") { $in = $true; continue }
+            if ($in -and $line -match "^## \[") { break }
+            if ($in) { $body += $line }
+          }
+          ($body -join "`n").Trim() | Set-Content release_body.txt
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release_body.txt
+          generate_release_notes: true

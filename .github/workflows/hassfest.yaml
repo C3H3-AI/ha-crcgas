@@ -1,0 +1,16 @@
+name: hassfest
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hassemo/action-hassfest@v3
+        with:
+          paths: "custom_components/**/manifest.json"
