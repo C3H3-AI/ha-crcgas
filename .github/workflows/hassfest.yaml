@@ -1,4 +1,4 @@
-name: hassfest
+name: Validate with hassfest
 
 on:
   push:
@@ -11,6 +11,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: hassemo/action-hassfest@v3
-        with:
-          paths: "custom_components/**/manifest.json"
+      - uses: home-assistant/actions/hassfest@master
