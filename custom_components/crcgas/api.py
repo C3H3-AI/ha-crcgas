@@ -51,6 +51,42 @@ class HuarunGasApi:
         self._on_token_refresh = on_token_refresh
         self._session = session  # aiohttp.ClientSession
 
+        # --- 日志节流（2026-11-01 加）---
+        # 「会话超时」是**不可自愈**的终态：refresh-token 已失效，只能用户重新登录。
+        # 原先每分钟的紧急定时器都会打一条 ERROR，一小时 60+ 条，把 HA 的
+        # 100 行日志窗口完全占满，导致其它集成的真实故障（如 huawei_home_storage
+        # 的 401）被冲掉、无从排查。
+        #
+        # 现在：同一种失败只在**首次**和**每 30 分钟**报一次 ERROR，
+        # 其余降为 DEBUG。故障状态用 _session_dead 记录，恢复后自动重置。
+        self._session_dead = False
+        self._dead_logged_at: float = 0.0
+        self._dead_count = 0
+
+    def _log_session_dead(self, message: str) -> None:
+        """会话失效的节流日志：首次 + 每 30 分钟一次 ERROR，其余 DEBUG。"""
+        now = time.time()
+        self._dead_count += 1
+        self._session_dead = True
+        # 首次，或距上次 ERROR 超过 30 分钟
+        if self._dead_logged_at == 0.0 or now - self._dead_logged_at >= 1800:
+            _LOGGER.error(
+                "%s（累计 %d 次，30 分钟内不再重复报警；请重新登录以恢复）",
+                message,
+                self._dead_count,
+            )
+            self._dead_logged_at = now
+        else:
+            _LOGGER.debug("%s（已节流，第 %d 次）", message, self._dead_count)
+
+    def _mark_session_alive(self) -> None:
+        """刷新成功时复位节流状态。"""
+        if self._session_dead:
+            _LOGGER.info("Token 已恢复（此前累计失败 %d 次）", self._dead_count)
+        self._session_dead = False
+        self._dead_logged_at = 0.0
+        self._dead_count = 0
+
     def _decode_jwt_payload(self, token: str) -> Optional[Dict[str, Any]]:
         """解码JWT payload获取过期时间"""
         try:
@@ -203,7 +239,9 @@ class HuarunGasApi:
                 _LOGGER.debug(f"刷新Token原始响应: {data}")
 
                 if self._is_session_timeout(data):
-                    _LOGGER.error(f"Token刷新失败(会话超时): {data.get('msg')}")
+                    self._log_session_dead(
+                        f"Token刷新失败(会话超时): {data.get('msg')}"
+                    )
                     raise SessionTimeoutError(f"{data.get('msg')}")
 
                 if not data.get("success"):
@@ -221,6 +259,7 @@ class HuarunGasApi:
                 new_wx_code = result.get("wxCode") or result.get("wxcode")
 
                 if new_refresh_token and new_bo_token:
+                    self._mark_session_alive()
                     old_rt = self.refresh_token[:30] if len(self.refresh_token) > 30 else self.refresh_token
                     self.refresh_token = new_refresh_token
                     self.bo_token = new_bo_token

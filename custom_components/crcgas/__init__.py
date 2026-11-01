@@ -53,11 +53,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """每小时定时器回调：无条件刷新 Token"""
         try:
             remaining = api.get_token_remaining_seconds()
-            _LOGGER.info(f"独立定时器[整点]: 开始刷新Token，当前剩余{remaining}秒")
+            _LOGGER.debug(f"独立定时器[整点]: 开始刷新Token，当前剩余{remaining}秒")
             await api.async_refresh_token()
             _LOGGER.info("独立定时器[整点]: Token刷新成功")
         except SessionTimeoutError:
-            _LOGGER.error("独立定时器[整点]: Token刷新失败(会话超时)，Token已完全失效，需要重新登录")
+            # api.py 的 _log_session_dead 已做节流报警，这里只留 DEBUG，
+            # 否则一次失效会被打两遍，仍然淹没日志窗口。
+            _LOGGER.debug("独立定时器[整点]: Token会话超时（详情见 api 日志）")
         except Exception as e:
             _LOGGER.error(f"独立定时器[整点]: Token刷新异常: {e}")
 
@@ -68,11 +70,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             threshold_seconds = int(TOKEN_EXPIRE_THRESHOLD.total_seconds())
             if remaining is None or remaining >= threshold_seconds:
                 return
-            _LOGGER.info(f"独立定时器[紧急]: Token剩余{remaining}秒(<{threshold_seconds}秒)，立即刷新...")
+            _LOGGER.debug(f"独立定时器[紧急]: Token剩余{remaining}秒(<{threshold_seconds}秒)，立即刷新...")
             await api.async_refresh_token()
             _LOGGER.info("独立定时器[紧急]: Token刷新成功")
         except SessionTimeoutError:
-            _LOGGER.error("独立定时器[紧急]: Token刷新失败(会话超时)，Token已完全失效，需要重新登录")
+            _LOGGER.debug("独立定时器[紧急]: Token会话超时（详情见 api 日志）")
         except Exception as e:
             _LOGGER.error(f"独立定时器[紧急]: Token刷新异常: {e}")
 
